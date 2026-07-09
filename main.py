@@ -250,7 +250,7 @@ I18N: dict[str, dict[str, str]] = {
 }
 
 
-def L(key: str, **kw) -> str:
+def L(key: str, /, **kw) -> str:
     """Localized string for `key` in the active language (PT fallback EN)."""
     s = I18N[LANG].get(key) or I18N["en"].get(key) or key
     return s.format(**kw) if kw else s
