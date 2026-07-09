@@ -79,7 +79,7 @@ DAW-style multi-track mixer, with real-time synchronized playback,
 automatic key and BPM detection, and mix export. Interface available in
 **Portuguese and English** (PT/EN selector in the footer).
 
-![Isolate in use](docs/screenshot.png)
+![Isolate — English UI](docs/screenshot-en.png)
 
 ## Features
 
