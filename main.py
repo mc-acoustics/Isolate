@@ -80,16 +80,188 @@ log = logging.getLogger(_APP_NAME)
 SUPPORTED_EXTENSIONS = {".wav", ".mp3", ".m4a", ".mp4"}
 NATIVE_SF_EXTENSIONS = {".wav", ".flac", ".ogg", ".aiff", ".aif"}
 
+# ---------------------------------------------------------------------------
+# Internationalization (PT-BR / EN) — user-selectable, persisted in
+# %LOCALAPPDATA%\Isolate\settings.json, applied on startup.
+# ---------------------------------------------------------------------------
+
+_SETTINGS_FILE = _APPDATA_DIR / "settings.json"
+
+
+def _load_settings() -> dict:
+    try:
+        import json
+        return json.loads(_SETTINGS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_settings(settings: dict) -> None:
+    try:
+        import json
+        _SETTINGS_FILE.write_text(json.dumps(settings, indent=2),
+                                  encoding="utf-8")
+    except Exception:
+        log.warning("Could not save settings:\n%s", traceback.format_exc())
+
+
+_SETTINGS = _load_settings()
+LANG = _SETTINGS.get("language", "pt")
+if LANG not in ("pt", "en"):
+    LANG = "pt"
+
+I18N: dict[str, dict[str, str]] = {
+    "pt": {
+        "drop_dnd": "Arraste um arquivo de áudio aqui\n.wav  .mp3  .m4a  .mp4",
+        "drop_click": "Clique para escolher um arquivo de áudio\n"
+                      ".wav  .mp3  .m4a  .mp4",
+        "url_placeholder": "URL do YouTube...",
+        "btn_download": "Baixar & Carregar",
+        "lbl_output": "Saída:",
+        "device_default": "Padrão do sistema",
+        "lbl_sep_mode": "M O D O   D E   S E P A R A Ç Ã O",
+        "stems2": "2 Stems (Vocais / Acompanhamento)",
+        "stems4": "4 Stems (Vocais / Bateria / Baixo / Outros)",
+        "stems5": "5 Stems (Vocais / Bateria / Baixo / Piano / Outros)",
+        "btn_separate": "Separar Faixas",
+        "lbl_analysis": "A N Á L I S E   M U S I C A L",
+        "chip_key": "TOM",
+        "btn_analyze": "Detectar Tom & BPM",
+        "mixer_hint": "Carregue um arquivo de áudio para começar.",
+        "btn_export": "Exportar Mix",
+        "status_ready": "●  Pronto.",
+        "footer": "Ferramenta educacional para separação de instrumentos "
+                  "e análise musical. Distribuição gratuita.",
+        "track_original": "Áudio Original",
+        "stem_vocals": "Vocais", "stem_drums": "Bateria",
+        "stem_bass": "Baixo", "stem_piano": "Piano",
+        "stem_other": "Outros", "stem_accompaniment": "Acompanhamento",
+        "dlg_open_title": "Abrir arquivo de áudio",
+        "dlg_export_title": "Exportar mix",
+        "ft_audio": "Áudio / vídeo", "ft_all": "Todos os arquivos",
+        "ft_wav": "Arquivo WAV", "ft_mp3": "Arquivo MP3",
+        "msg_unsupported": "Tipo de arquivo não suportado '{ext}'. "
+                           "Suportados: .wav, .mp3, .m4a, .mp4",
+        "st_loading": "Carregando '{name}'...",
+        "st_loaded": "Carregado: '{name}' — {sr} Hz, {dur}.",
+        "st_downloading": "Baixando áudio... {pct}",
+        "st_converting": "Convertendo download para WAV...",
+        "st_retry": "Tentando baixar de novo (tentativa {n}/{total})...",
+        "st_loading_dl": "Carregando áudio baixado...",
+        "st_engine": "Carregando o motor de separação (TensorFlow)...",
+        "st_model_dl": "Baixando modelo pré-treinado (só na primeira vez)...",
+        "st_separating": "Separando o áudio... isso pode levar alguns minutos.",
+        "st_sep_done": "Separação concluída — {n} stems prontos.",
+        "st_render": "Renderizando o mixdown...",
+        "st_encoding": "Codificando {fmt}...",
+        "st_exported": "Exportado: {path}",
+        "st_error": "Erro: {exc}",
+        "st_unexpected": "Erro inesperado: {exc}",
+        "st_paste_url": "Cole uma URL do YouTube primeiro.",
+        "st_load_first_sep": "Carregue um arquivo ou URL do YouTube primeiro.",
+        "st_nothing_export": "Nada para exportar — carregue um áudio primeiro.",
+        "st_load_first": "Carregue um arquivo de áudio primeiro.",
+        "st_analysis": "Análise: {key}, {bpm} BPM.",
+        "st_playback_err": "Erro de reprodução: {exc}",
+        "st_device_err": "Erro no dispositivo: {exc}",
+        "st_no_ffmpeg": "Aviso: ffmpeg não encontrado no PATH — carregar "
+                        "MP3/M4A/MP4, baixar do YouTube e exportar MP3 "
+                        "não vão funcionar.",
+        "err_no_ffmpeg": "O ffmpeg não foi encontrado no PATH. Instale-o "
+                         "e reinicie o Isolate.",
+        "err_decode": "O ffmpeg não conseguiu decodificar '{name}':\n{err}",
+        "err_not_found": "Arquivo não encontrado: {path}",
+        "err_yt": "O download do YouTube falhou após {n} tentativas: {exc}",
+        "err_yt_nofile": "O áudio baixado não foi gerado.",
+        "err_stem_missing": "O Spleeter não produziu '{name}.wav'.",
+        "err_mp3_ffmpeg": "Exportar MP3 exige o ffmpeg no PATH.",
+        "err_export": "A exportação falhou:\n{err}",
+        "lang_restart": "Reiniciar o Isolate agora para aplicar o idioma?\n"
+                        "Restart Isolate now to apply the language?",
+    },
+    "en": {
+        "drop_dnd": "Drop an audio file here\n.wav  .mp3  .m4a  .mp4",
+        "drop_click": "Click to choose an audio file\n"
+                      ".wav  .mp3  .m4a  .mp4",
+        "url_placeholder": "YouTube URL...",
+        "btn_download": "Download & Load",
+        "lbl_output": "Output:",
+        "device_default": "System default",
+        "lbl_sep_mode": "S E P A R A T I O N   M O D E",
+        "stems2": "2 Stems (Vocals / Accompaniment)",
+        "stems4": "4 Stems (Vocals / Drums / Bass / Other)",
+        "stems5": "5 Stems (Vocals / Drums / Bass / Piano / Other)",
+        "btn_separate": "Separate Tracks",
+        "lbl_analysis": "M U S I C A L   A N A L Y S I S",
+        "chip_key": "KEY",
+        "btn_analyze": "Detect Key & BPM",
+        "mixer_hint": "Load an audio file to get started.",
+        "btn_export": "Export Mix",
+        "status_ready": "●  Ready.",
+        "footer": "Educational tool for instrument separation and musical "
+                  "analysis. Free distribution.",
+        "track_original": "Original Audio",
+        "stem_vocals": "Vocals", "stem_drums": "Drums",
+        "stem_bass": "Bass", "stem_piano": "Piano",
+        "stem_other": "Other", "stem_accompaniment": "Accompaniment",
+        "dlg_open_title": "Open audio file",
+        "dlg_export_title": "Export mix",
+        "ft_audio": "Audio / video", "ft_all": "All files",
+        "ft_wav": "WAV file", "ft_mp3": "MP3 file",
+        "msg_unsupported": "Unsupported file type '{ext}'. "
+                           "Supported: .wav, .mp3, .m4a, .mp4",
+        "st_loading": "Loading '{name}'...",
+        "st_loaded": "Loaded '{name}' — {sr} Hz, {dur}.",
+        "st_downloading": "Downloading audio... {pct}",
+        "st_converting": "Converting download to WAV...",
+        "st_retry": "Retrying download (attempt {n}/{total})...",
+        "st_loading_dl": "Loading downloaded audio...",
+        "st_engine": "Loading separation engine (TensorFlow)...",
+        "st_model_dl": "Downloading pretrained model (first run only)...",
+        "st_separating": "Separating audio... this can take a few minutes.",
+        "st_sep_done": "Separation complete — {n} stems ready.",
+        "st_render": "Rendering mixdown...",
+        "st_encoding": "Encoding {fmt}...",
+        "st_exported": "Exported: {path}",
+        "st_error": "Error: {exc}",
+        "st_unexpected": "Unexpected error: {exc}",
+        "st_paste_url": "Paste a YouTube URL first.",
+        "st_load_first_sep": "Load an audio file or YouTube URL first.",
+        "st_nothing_export": "Nothing to export — load audio first.",
+        "st_load_first": "Load an audio file first.",
+        "st_analysis": "Analysis: {key}, {bpm} BPM.",
+        "st_playback_err": "Playback error: {exc}",
+        "st_device_err": "Device error: {exc}",
+        "st_no_ffmpeg": "Warning: ffmpeg not found on PATH — MP3/M4A/MP4 "
+                        "loading, YouTube download and MP3 export will "
+                        "not work.",
+        "err_no_ffmpeg": "ffmpeg was not found on PATH. Install it and "
+                         "restart Isolate.",
+        "err_decode": "ffmpeg could not decode '{name}':\n{err}",
+        "err_not_found": "File not found: {path}",
+        "err_yt": "YouTube download failed after {n} attempts: {exc}",
+        "err_yt_nofile": "Downloaded audio file was not produced.",
+        "err_stem_missing": "Spleeter did not produce '{name}.wav'.",
+        "err_mp3_ffmpeg": "MP3 export requires ffmpeg on PATH.",
+        "err_export": "Export failed:\n{err}",
+        "lang_restart": "Restart Isolate now to apply the language?\n"
+                        "Reiniciar o Isolate agora para aplicar o idioma?",
+    },
+}
+
+
+def L(key: str, **kw) -> str:
+    """Localized string for `key` in the active language (PT fallback EN)."""
+    s = I18N[LANG].get(key) or I18N["en"].get(key) or key
+    return s.format(**kw) if kw else s
+
+
 STEM_MODELS = {
-    "2 Stems (Vocals / Accompaniment)": ("spleeter:2stems-16kHz",
-                                         ["vocals", "accompaniment"]),
-    "4 Stems (Vocals / Drums / Bass / Other)": ("spleeter:4stems-16kHz",
-                                                ["vocals", "drums",
-                                                 "bass", "other"]),
-    "5 Stems (Vocals / Drums / Bass / Piano / Other)": ("spleeter:5stems-16kHz",
-                                                        ["vocals", "drums",
-                                                         "bass", "piano",
-                                                         "other"]),
+    L("stems2"): ("spleeter:2stems-16kHz", ["vocals", "accompaniment"]),
+    L("stems4"): ("spleeter:4stems-16kHz", ["vocals", "drums",
+                                            "bass", "other"]),
+    L("stems5"): ("spleeter:5stems-16kHz", ["vocals", "drums",
+                                            "bass", "piano", "other"]),
 }
 
 BLOCKSIZE = 1024          # frames per audio callback (~23 ms @ 44.1 kHz)
@@ -131,9 +303,9 @@ RADIO_RING = "#55534e"
 UI_FAMILY = "Segoe UI"
 MONO_FAMILY = "Consolas"
 
-STEM_LABELS_PT = {"vocals": "Vocais", "drums": "Bateria", "bass": "Baixo",
-                  "piano": "Piano", "other": "Outros",
-                  "accompaniment": "Acompanhamento"}
+STEM_LABELS = {inst: L(f"stem_{inst}")
+               for inst in ("vocals", "drums", "bass", "piano",
+                            "other", "accompaniment")}
 
 
 def key_short(key: str | None) -> str | None:
@@ -399,7 +571,7 @@ def decode_to_array(path: str, temp_dir: str) -> tuple[np.ndarray, int, str]:
     """
     p = Path(path)
     if not p.exists():
-        raise MediaError(f"File not found: {path}")
+        raise MediaError(L("err_not_found", path=path))
 
     if p.suffix.lower() in NATIVE_SF_EXTENSIONS:
         try:
@@ -410,10 +582,7 @@ def decode_to_array(path: str, temp_dir: str) -> tuple[np.ndarray, int, str]:
 
     ffmpeg = find_ffmpeg()
     if not ffmpeg:
-        raise MediaError(
-            "ffmpeg was not found on PATH. Install it (e.g. "
-            "`winget install Gyan.FFmpeg`) and restart Isolate."
-        )
+        raise MediaError(L("err_no_ffmpeg"))
     out_wav = os.path.join(temp_dir, f"decoded_{uuid.uuid4().hex[:12]}.wav")
     cmd = [ffmpeg, "-y", "-i", str(p), "-vn",
            "-acodec", "pcm_f32le", out_wav]
@@ -421,9 +590,8 @@ def decode_to_array(path: str, temp_dir: str) -> tuple[np.ndarray, int, str]:
                           creationflags=getattr(subprocess,
                                                 "CREATE_NO_WINDOW", 0))
     if proc.returncode != 0 or not os.path.exists(out_wav):
-        raise MediaError(
-            f"ffmpeg could not decode '{p.name}':\n{proc.stderr[-400:]}"
-        )
+        raise MediaError(L("err_decode", name=p.name,
+                           err=proc.stderr[-400:]))
     data, sr = sf.read(out_wav, dtype="float32", always_2d=True)
     return data, sr, out_wav
 
@@ -440,9 +608,9 @@ def download_youtube(url: str, temp_dir: str,
     def hook(d):
         if d.get("status") == "downloading":
             pct = (d.get("_percent_str") or "").strip()
-            progress(f"Downloading audio... {pct}")
+            progress(L("st_downloading", pct=pct))
         elif d.get("status") == "finished":
-            progress("Converting download to WAV...")
+            progress(L("st_converting"))
 
     base_opts = {
         "format": "bestaudio/best",
@@ -476,8 +644,7 @@ def download_youtube(url: str, temp_dir: str,
     last_exc: Exception | None = None
     for n, extra in enumerate(client_attempts):
         if n:
-            progress(f"Retrying download (attempt {n + 1}/"
-                     f"{len(client_attempts)})...")
+            progress(L("st_retry", n=n + 1, total=len(client_attempts)))
         try:
             with YoutubeDL({**base_opts, **extra}) as ydl:
                 info = ydl.extract_info(url, download=True)
@@ -487,14 +654,13 @@ def download_youtube(url: str, temp_dir: str,
             last_exc = exc
             log.warning("yt-dlp attempt %d failed: %s", n + 1, exc)
     if info is None:
-        raise MediaError(
-            f"YouTube download failed after {len(client_attempts)} "
-            f"attempts: {last_exc}") from last_exc
+        raise MediaError(L("err_yt", n=len(client_attempts),
+                           exc=last_exc)) from last_exc
     if "entries" in info:                       # playlist -> first entry
         info = info["entries"][0]
     wav_path = os.path.join(temp_dir, f"yt_{info['id']}.wav")
     if not os.path.exists(wav_path):
-        raise MediaError("Downloaded audio file was not produced.")
+        raise MediaError(L("err_yt_nofile"))
     return wav_path, info.get("title") or "YouTube Audio"
 
 
@@ -508,7 +674,7 @@ def separate_stems(source_wav: str, model_spec: str, stem_order: list[str],
     Run Spleeter on `source_wav` and return the stems, in `stem_order`,
     as (display_name, float32 array) pairs at 44.1 kHz.
     """
-    progress("Loading separation engine (TensorFlow)...")
+    progress(L("st_engine"))
     from spleeter.separator import Separator   # heavy import, keep lazy
 
     sep = _SEPARATOR_CACHE.get(model_spec)
@@ -522,11 +688,11 @@ def separate_stems(source_wav: str, model_spec: str, stem_order: list[str],
             log.warning("Removing broken model directory: %s", model_dir)
             shutil.rmtree(model_dir, ignore_errors=True)
         if not (model_dir / ".probe").exists():
-            progress("Downloading pretrained model (first run only)...")
+            progress(L("st_model_dl"))
         sep = Separator(model_spec, multiprocess=False)
         _SEPARATOR_CACHE[model_spec] = sep
 
-    progress("Separating audio... this can take a few minutes.")
+    progress(L("st_separating"))
     out_dir = os.path.join(temp_dir, "stems")
     os.makedirs(out_dir, exist_ok=True)
     # default duration kwarg truncates at 600 s — pass the real length
@@ -540,10 +706,10 @@ def separate_stems(source_wav: str, model_spec: str, stem_order: list[str],
     for instrument in stem_order:
         stem_path = os.path.join(out_dir, base, f"{instrument}.wav")
         if not os.path.exists(stem_path):
-            raise MediaError(f"Spleeter did not produce '{instrument}.wav'.")
+            raise MediaError(L("err_stem_missing", name=instrument))
         data, _sr = sf.read(stem_path, dtype="float32", always_2d=True)
-        stems.append((STEM_LABELS_PT.get(instrument,
-                                         instrument.capitalize()), data))
+        stems.append((STEM_LABELS.get(instrument,
+                                      instrument.capitalize()), data))
     return stems
 
 
@@ -564,7 +730,7 @@ def export_mix(mix: np.ndarray, samplerate: int, out_path: str,
             # fallback: correct bit depth, native rate (no resampler on hand)
             sf.write(out_path, mix, samplerate, subtype="PCM_16")
             return
-        raise MediaError("MP3 export requires ffmpeg on PATH.")
+        raise MediaError(L("err_mp3_ffmpeg"))
 
     tmp_wav = os.path.join(temp_dir, "export_master_f32.wav")
     sf.write(tmp_wav, mix, samplerate, subtype="FLOAT")
@@ -578,7 +744,7 @@ def export_mix(mix: np.ndarray, samplerate: int, out_path: str,
                           creationflags=getattr(subprocess,
                                                 "CREATE_NO_WINDOW", 0))
     if proc.returncode != 0:
-        raise MediaError(f"Export failed:\n{proc.stderr[-400:]}")
+        raise MediaError(L("err_export", err=proc.stderr[-400:]))
 
 
 # ---------------------------------------------------------------------------
@@ -900,9 +1066,7 @@ class IsolateApp(_Root):
         self.after(UI_POLL_MS, self._poll)
 
         if not find_ffmpeg():
-            self._set_status(
-                "Warning: ffmpeg not found on PATH — MP3/M4A/MP4 loading, "
-                "YouTube download and MP3 export will not work.")
+            self._set_status(L("st_no_ffmpeg"))
 
     # ------------------------------------------------------------------ UI --
 
@@ -918,10 +1082,7 @@ class IsolateApp(_Root):
         top.grid_columnconfigure(1, weight=1)
 
         # Drag & drop landing zone (tema §5: solid 1.5px border, radius 22)
-        drop_text = ("Arraste um arquivo de áudio aqui\n.wav  .mp3  .m4a  .mp4"
-                     if _HAS_DND else
-                     "Clique para escolher um arquivo de áudio\n"
-                     ".wav  .mp3  .m4a  .mp4")
+        drop_text = L("drop_dnd") if _HAS_DND else L("drop_click")
         self.drop_zone = ctk.CTkFrame(
             top, corner_radius=22, fg_color=COL_TROUGH,
             border_width=2, border_color=BTN_GHOST_BRD)
@@ -943,14 +1104,14 @@ class IsolateApp(_Root):
         url_frame.grid(row=0, column=1, sticky="ew", padx=(6, 10), pady=10)
         url_frame.grid_columnconfigure(0, weight=1)
         self.url_entry = ctk.CTkEntry(
-            url_frame, placeholder_text="URL do YouTube...", height=36,
+            url_frame, placeholder_text=L("url_placeholder"), height=36,
             corner_radius=999, fg_color=COL_ELEV,
             border_width=1, border_color=BTN_GHOST_BRD,
             text_color=COL_TEXT, placeholder_text_color=COL_TEXT_DIM,
             font=ctk.CTkFont(family=UI_FAMILY, size=13))
         self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
         self.download_btn = ctk.CTkButton(
-            url_frame, text="Baixar & Carregar", width=140, height=36,
+            url_frame, text=L("btn_download"), width=140, height=36,
             corner_radius=999, fg_color=BTN_PRI_BG, text_color=BTN_PRI_TX,
             hover_color=BTN_PRI_HOV,
             font=ctk.CTkFont(family=UI_FAMILY, size=13, weight="bold"),
@@ -963,11 +1124,11 @@ class IsolateApp(_Root):
                   padx=10, pady=(0, 10))
         row2.grid_columnconfigure(5, weight=1)
 
-        ctk.CTkLabel(row2, text="Saída:", text_color=COL_TEXT_2,
+        ctk.CTkLabel(row2, text=L("lbl_output"), text_color=COL_TEXT_2,
                      font=ctk.CTkFont(family=UI_FAMILY, size=12)
                      ).grid(row=0, column=0, padx=(0, 6))
         self.device_menu = ctk.CTkOptionMenu(
-            row2, values=["System default"], width=300, corner_radius=999,
+            row2, values=[L("device_default")], width=300, corner_radius=999,
             dynamic_resizing=False,     # long device names must NOT widen
                                         # the menu and push the transport
                                         # buttons out of the window
@@ -1031,15 +1192,14 @@ class IsolateApp(_Root):
         cfg.grid(row=1, column=0, sticky="ew", padx=12, pady=6)
         cfg.grid_columnconfigure(3, weight=1)
 
-        ctk.CTkLabel(cfg, text="M O D O   D E   S E P A R A Ç Ã O",
+        ctk.CTkLabel(cfg, text=L("lbl_sep_mode"),
                      text_color=COL_TEXT_2,
                      font=ctk.CTkFont(family=UI_FAMILY, size=12,
                                       weight="bold")
                      ).grid(row=0, column=0, rowspan=3,
                             padx=(24, 18), pady=10, sticky="w")
 
-        self.stem_var = ctk.StringVar(
-            value="4 Stems (Vocals / Drums / Bass / Other)")
+        self.stem_var = ctk.StringVar(value=L("stems4"))
         for i, label in enumerate(STEM_MODELS):
             ctk.CTkRadioButton(cfg, text=label, value=label,
                                variable=self.stem_var,
@@ -1051,7 +1211,7 @@ class IsolateApp(_Root):
                                       padx=4, pady=3)
 
         self.separate_btn = ctk.CTkButton(
-            cfg, text="Separar Faixas", height=48, width=190,
+            cfg, text=L("btn_separate"), height=48, width=190,
             corner_radius=999, fg_color=BTN_PRI_BG, text_color=BTN_PRI_TX,
             hover_color=BTN_PRI_HOV,
             font=ctk.CTkFont(family=UI_FAMILY, size=15, weight="bold"),
@@ -1065,7 +1225,7 @@ class IsolateApp(_Root):
         ana.grid(row=2, column=0, sticky="ew", padx=12, pady=6)
         ana.grid_columnconfigure(3, weight=1)
 
-        ctk.CTkLabel(ana, text="A N Á L I S E   M U S I C A L",
+        ctk.CTkLabel(ana, text=L("lbl_analysis"),
                      text_color=COL_TEXT_2,
                      font=ctk.CTkFont(family=UI_FAMILY, size=12,
                                       weight="bold")
@@ -1075,7 +1235,7 @@ class IsolateApp(_Root):
         key_chip = ctk.CTkFrame(ana, fg_color=CHIP_BG, corner_radius=18,
                                 border_width=1, border_color=CHIP_BORDER)
         key_chip.grid(row=0, column=1, padx=(0, 12), pady=8)
-        ctk.CTkLabel(key_chip, text="TOM", text_color=CHIP_BORDER,
+        ctk.CTkLabel(key_chip, text=L("chip_key"), text_color=CHIP_BORDER,
                      font=ctk.CTkFont(family=UI_FAMILY, size=10,
                                       weight="bold")
                      ).grid(row=0, column=0, padx=(16, 16), pady=(5, 0))
@@ -1097,7 +1257,7 @@ class IsolateApp(_Root):
         self.bpm_label.grid(row=1, column=0, padx=(16, 16), pady=(0, 6))
 
         self.analyze_btn = ctk.CTkButton(
-            ana, text="Detectar Tom & BPM", width=160, height=32,
+            ana, text=L("btn_analyze"), width=160, height=32,
             corner_radius=999, fg_color=BTN_GHOST_BG, text_color=COL_TEXT,
             border_width=1, border_color=BTN_GHOST_BRD,
             hover_color=BTN_GHOST_HOV,
@@ -1120,7 +1280,7 @@ class IsolateApp(_Root):
                              pady=(4, 10))
 
         self.mixer_hint = ctk.CTkLabel(
-            self.mixer, text="Carregue um arquivo de áudio para começar.",
+            self.mixer, text=L("mixer_hint"),
             text_color=COL_TEXT_DIM,
             font=ctk.CTkFont(family=UI_FAMILY, size=13))
         self.mixer_hint.grid(row=1, column=0, pady=30)
@@ -1132,7 +1292,7 @@ class IsolateApp(_Root):
         bottom.grid_columnconfigure(2, weight=1)
 
         self.export_btn = ctk.CTkButton(
-            bottom, text="Exportar Mix", width=130, height=36,
+            bottom, text=L("btn_export"), width=130, height=36,
             corner_radius=999, fg_color=BTN_PRI_BG, text_color=BTN_PRI_TX,
             hover_color=BTN_PRI_HOV,
             font=ctk.CTkFont(family=UI_FAMILY, size=13, weight="bold"),
@@ -1150,26 +1310,56 @@ class IsolateApp(_Root):
         self.format_toggle.grid(row=0, column=1, padx=8, pady=10)
 
         self.status_label = ctk.CTkLabel(
-            bottom, text="●  Pronto.", anchor="e", text_color=OK_GREEN,
+            bottom, text=L("status_ready"), anchor="e", text_color=OK_GREEN,
             font=ctk.CTkFont(family=UI_FAMILY, size=12))
         self.status_label.grid(row=0, column=2, sticky="e",
-                               padx=(8, 18), pady=10)
+                               padx=(8, 8), pady=10)
+
+        # language selector (PT-BR / EN) — applied after an app restart
+        self.lang_toggle = ctk.CTkSegmentedButton(
+            bottom, values=["PT", "EN"], width=90,
+            corner_radius=999, fg_color=COL_TROUGH,
+            selected_color=BTN_GHOST_BG, selected_hover_color=BTN_GHOST_HOV,
+            unselected_color=COL_TROUGH, unselected_hover_color="#1a1a1e",
+            text_color=COL_TEXT,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"),
+            command=self._on_language)
+        self.lang_toggle.set(LANG.upper())
+        self.lang_toggle.grid(row=0, column=3, padx=(0, 18), pady=10)
 
         # tema §5: mandatory educational note — own row so it never
         # collides with the status text; everything else stays put
         ctk.CTkLabel(
             bottom,
-            text="Ferramenta educacional para separação de instrumentos "
-                 "e análise musical. Distribuição gratuita.",
+            text=L("footer"),
             text_color=COL_TEXT_DIM,
             font=ctk.CTkFont(family=UI_FAMILY, size=12)
-        ).grid(row=1, column=0, columnspan=3, pady=(0, 8))
+        ).grid(row=1, column=0, columnspan=4, pady=(0, 8))
+
+    # ------------------------------------------------------------ language --
+
+    def _on_language(self, value: str) -> None:
+        """Persist the chosen UI language; offer to restart to apply it."""
+        new_lang = "en" if value == "EN" else "pt"
+        if new_lang == LANG:
+            return
+        _SETTINGS["language"] = new_lang
+        _save_settings(_SETTINGS)
+        if messagebox.askyesno(_APP_NAME, L("lang_restart")):
+            self.engine.shutdown()
+            self._cleanup_temp()
+            if getattr(sys, "frozen", False):
+                subprocess.Popen([sys.executable])
+            else:
+                subprocess.Popen([sys.executable,
+                                  os.path.abspath(sys.argv[0])])
+            self.destroy()
 
     # ------------------------------------------------------ device handling --
 
     def _populate_devices(self) -> None:
-        self._device_map: dict[str, int | None] = {"System default": None}
-        labels = ["System default"]
+        self._device_map: dict[str, int | None] = {L("device_default"): None}
+        labels = [L("device_default")]
         try:
             hostapis = sd.query_hostapis()
             for idx, dev in enumerate(sd.query_devices()):
@@ -1184,7 +1374,7 @@ class IsolateApp(_Root):
         except Exception as exc:
             log.warning("Could not enumerate audio devices: %s", exc)
         self.device_menu.configure(values=labels)
-        self.device_menu.set("System default")
+        self.device_menu.set(L("device_default"))
 
     def _on_device_selected(self, label: str) -> None:
         was_playing = self.engine.playing
@@ -1194,7 +1384,7 @@ class IsolateApp(_Root):
             try:
                 self.engine.play()
             except Exception as exc:
-                self._set_status(f"Device error: {exc}")
+                self._set_status(L("st_device_err", exc=exc))
 
     # ------------------------------------------------------------ transport --
 
@@ -1206,7 +1396,7 @@ class IsolateApp(_Root):
         try:
             self.engine.play()
         except Exception as exc:
-            self._set_status(f"Playback error: {exc}")
+            self._set_status(L("st_playback_err", exc=exc))
             self.engine.set_device(None)
 
     def _on_space(self, event):
@@ -1246,9 +1436,9 @@ class IsolateApp(_Root):
 
     def _browse_file(self) -> None:
         path = filedialog.askopenfilename(
-            title="Open audio file",
-            filetypes=[("Audio / video", "*.wav *.mp3 *.m4a *.mp4"),
-                       ("All files", "*.*")])
+            title=L("dlg_open_title"),
+            filetypes=[(L("ft_audio"), "*.wav *.mp3 *.m4a *.mp4"),
+                       (L("ft_all"), "*.*")])
         if path:
             self._load_file(path)
 
@@ -1257,27 +1447,24 @@ class IsolateApp(_Root):
             return
         ext = Path(path).suffix.lower()
         if ext not in SUPPORTED_EXTENSIONS:
-            messagebox.showwarning(
-                _APP_NAME,
-                f"Unsupported file type '{ext}'. "
-                "Supported: .wav, .mp3, .m4a, .mp4")
+            messagebox.showwarning(_APP_NAME, L("msg_unsupported", ext=ext))
             return
         self._run_async(self._task_load_file, path)
 
     def _task_load_file(self, path: str) -> None:
-        self._status_async(f"Loading '{Path(path).name}'...")
+        self._status_async(L("st_loading", name=Path(path).name))
         data, sr, wav_path = decode_to_array(path, self.temp_dir)
         self.source_wav = wav_path
         self.source_title = Path(path).stem
         self.after(0, lambda: self._install_tracks(
-            [("Áudio Original", data)], sr,
-            f"Loaded '{Path(path).name}' — {sr} Hz, "
-            f"{format_time(len(data) / sr)}."))
+            [(L("track_original"), data)], sr,
+            L("st_loaded", name=Path(path).name, sr=sr,
+              dur=format_time(len(data) / sr))))
 
     def _on_download(self) -> None:
         url = self.url_entry.get().strip()
         if not url:
-            self._set_status("Paste a YouTube URL first.")
+            self._set_status(L("st_paste_url"))
             return
         if self._busy:
             return
@@ -1286,13 +1473,14 @@ class IsolateApp(_Root):
     def _task_download(self, url: str) -> None:
         wav_path, title = download_youtube(url, self.temp_dir,
                                            self._status_async)
-        self._status_async("Loading downloaded audio...")
+        self._status_async(L("st_loading_dl"))
         data, sr = sf.read(wav_path, dtype="float32", always_2d=True)
         self.source_wav = wav_path
         self.source_title = title
         self.after(0, lambda: self._install_tracks(
-            [("Áudio Original", data)], sr,
-            f"Loaded '{title}' — {sr} Hz, {format_time(len(data) / sr)}."))
+            [(L("track_original"), data)], sr,
+            L("st_loaded", name=title, sr=sr,
+              dur=format_time(len(data) / sr))))
 
     # ----------------------------------------------------------- separation --
 
@@ -1300,7 +1488,7 @@ class IsolateApp(_Root):
         if self._busy:
             return
         if not self.source_wav:
-            self._set_status("Load an audio file or YouTube URL first.")
+            self._set_status(L("st_load_first_sep"))
             return
         model_spec, stem_order = STEM_MODELS[self.stem_var.get()]
         self._run_async(self._task_separate, model_spec, stem_order)
@@ -1311,8 +1499,7 @@ class IsolateApp(_Root):
                                duration, self.temp_dir, self._status_async)
         sr = 44100    # Spleeter models always render at 44.1 kHz
         self.after(0, lambda: self._install_tracks(
-            stems, sr,
-            f"Separation complete — {len(stems)} stems ready."))
+            stems, sr, L("st_sep_done", n=len(stems))))
 
     # -------------------------------------------------------------- export --
 
@@ -1320,27 +1507,27 @@ class IsolateApp(_Root):
         if self._busy:
             return
         if not self.engine.tracks:
-            self._set_status("Nothing to export — load audio first.")
+            self._set_status(L("st_nothing_export"))
             return
         fmt = "mp3" if self.format_toggle.get().startswith("MP3") else "wav"
         default_name = (self.source_title or "isolate_mix") + f"_mix.{fmt}"
         out_path = filedialog.asksaveasfilename(
-            title="Export mix",
+            title=L("dlg_export_title"),
             initialfile=default_name,
             defaultextension=f".{fmt}",
-            filetypes=[("WAV file", "*.wav")] if fmt == "wav"
-                      else [("MP3 file", "*.mp3")])
+            filetypes=[(L("ft_wav"), "*.wav")] if fmt == "wav"
+                      else [(L("ft_mp3"), "*.mp3")])
         if not out_path:
             return
         self._run_async(self._task_export, fmt, out_path)
 
     def _task_export(self, fmt: str, out_path: str) -> None:
-        self._status_async("Rendering mixdown...")
+        self._status_async(L("st_render"))
         mix = self.engine.render_mix()
-        self._status_async(f"Encoding {fmt.upper()}...")
+        self._status_async(L("st_encoding", fmt=fmt.upper()))
         export_mix(mix, self.engine.samplerate, out_path, fmt,
                    self.temp_dir)
-        self._status_async(f"Exported: {out_path}")
+        self._status_async(L("st_exported", path=out_path))
 
     # ------------------------------------------------------------ mixer UI --
 
@@ -1364,7 +1551,7 @@ class IsolateApp(_Root):
 
     def _on_analyze(self) -> None:
         if not self.engine.tracks:
-            self._set_status("Load an audio file first.")
+            self._set_status(L("st_load_first"))
             return
         self._start_analysis()
 
@@ -1401,8 +1588,8 @@ class IsolateApp(_Root):
                         text=bpm_txt,
                         text_color=AMBER if bpm else AMBER_DIM)))
                 if key or bpm:
-                    self._status_async(
-                        f"Analysis: {key or '?'}, {bpm or '?'} BPM.")
+                    self._status_async(L("st_analysis", key=key or "?",
+                                         bpm=bpm or "?"))
             except Exception:
                 log.error("Analysis failed:\n%s", traceback.format_exc())
                 self.after(0, lambda: (
@@ -1425,10 +1612,10 @@ class IsolateApp(_Root):
             try:
                 fn(*args)
             except MediaError as exc:
-                self._status_async(f"Error: {exc}")
+                self._status_async(L("st_error", exc=exc))
             except Exception as exc:
                 log.error("Worker failed:\n%s", traceback.format_exc())
-                self._status_async(f"Unexpected error: {exc}")
+                self._status_async(L("st_unexpected", exc=exc))
             finally:
                 self.after(0, lambda: self._set_busy(False))
 
@@ -1446,7 +1633,8 @@ class IsolateApp(_Root):
 
     def _set_status(self, text: str) -> None:
         ok = text.startswith(("Loaded", "Exported", "Separation complete",
-                              "Analysis", "●"))
+                              "Analysis", "Carregado", "Exportado",
+                              "Separação concluída", "Análise", "●"))
         self.status_label.configure(
             text=text, text_color=OK_GREEN if ok else COL_TEXT_2)
         log.info(text)
