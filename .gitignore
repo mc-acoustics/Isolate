@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# PyInstaller (gerados pelo build.bat)
+build/
+dist/
+Isolate.spec
+
+# Runtime / locais
+isolate.log
+.claude/
+
+# Diário de desenvolvimento — NUNCA publicar (regra do usuário, 09/07/2026)
+CLAUDE.md
