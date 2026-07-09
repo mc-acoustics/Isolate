@@ -1,0 +1,23 @@
+# Isolate — dependencies
+# IMPORTANT: requires Python 3.10 (Spleeter/TensorFlow do not support 3.12+).
+
+# Separation engine (pulls in tensorflow, librosa, norbert, etc.)
+spleeter==2.4.0
+
+# Spleeter's dependency stack needs NumPy 1.x
+numpy>=1.23,<2.0
+
+# YouTube audio downloader
+yt-dlp>=2024.8.6
+
+# Real-time audio I/O and file I/O
+sounddevice>=0.4.6
+soundfile>=0.12.1
+
+# GUI
+customtkinter>=5.2.2
+tkinterdnd2>=0.4.2
+
+# Packaging (only needed to build the .exe)
+pyinstaller>=6.6
+pip-licenses>=5.0  # generates dist\Isolate\licenses\THIRD-PARTY-LICENSES.txt
