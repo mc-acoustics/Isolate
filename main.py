@@ -151,6 +151,8 @@ I18N: dict[str, dict[str, str]] = {
         "st_engine": "Carregando o motor de separação (TensorFlow)...",
         "st_model_dl": "Baixando modelo pré-treinado (só na primeira vez)...",
         "st_separating": "Separando o áudio... isso pode levar alguns minutos.",
+        "st_sep_chunk": "Separando o áudio... bloco {i} de {n}.",
+        "st_model_retry": "Modelo corrompido detectado — baixando de novo...",
         "st_sep_done": "Separação concluída — {n} stems prontos.",
         "st_render": "Renderizando o mixdown...",
         "st_encoding": "Codificando {fmt}...",
@@ -173,7 +175,13 @@ I18N: dict[str, dict[str, str]] = {
         "err_not_found": "Arquivo não encontrado: {path}",
         "err_yt": "O download do YouTube falhou após {n} tentativas: {exc}",
         "err_yt_nofile": "O áudio baixado não foi gerado.",
-        "err_stem_missing": "O Spleeter não produziu '{name}.wav'.",
+        "err_stem_missing": "O Spleeter não produziu o stem '{name}'.",
+        "err_oom": "Memória RAM insuficiente para separar essa faixa. "
+                   "Feche outros programas (navegador etc.) e tente de "
+                   "novo — ou use um modo com menos stems.",
+        "err_model_corrupt": "Os arquivos do modelo estão corrompidos e o "
+                             "novo download também falhou. Verifique sua "
+                             "conexão e tente de novo.",
         "err_mp3_ffmpeg": "Exportar MP3 exige o ffmpeg no PATH.",
         "err_export": "A exportação falhou:\n{err}",
         "lang_restart": "Reiniciar o Isolate agora para aplicar o idioma?\n"
@@ -219,6 +227,8 @@ I18N: dict[str, dict[str, str]] = {
         "st_engine": "Loading separation engine (TensorFlow)...",
         "st_model_dl": "Downloading pretrained model (first run only)...",
         "st_separating": "Separating audio... this can take a few minutes.",
+        "st_sep_chunk": "Separating audio... chunk {i} of {n}.",
+        "st_model_retry": "Corrupted model detected — downloading it again...",
         "st_sep_done": "Separation complete — {n} stems ready.",
         "st_render": "Rendering mixdown...",
         "st_encoding": "Encoding {fmt}...",
@@ -241,7 +251,13 @@ I18N: dict[str, dict[str, str]] = {
         "err_not_found": "File not found: {path}",
         "err_yt": "YouTube download failed after {n} attempts: {exc}",
         "err_yt_nofile": "Downloaded audio file was not produced.",
-        "err_stem_missing": "Spleeter did not produce '{name}.wav'.",
+        "err_stem_missing": "Spleeter did not produce the '{name}' stem.",
+        "err_oom": "Not enough RAM to separate this track. Close other "
+                   "programs (browser etc.) and try again — or pick a "
+                   "mode with fewer stems.",
+        "err_model_corrupt": "The model files are corrupted and the fresh "
+                             "download failed too. Check your connection "
+                             "and try again.",
         "err_mp3_ffmpeg": "MP3 export requires ffmpeg on PATH.",
         "err_export": "Export failed:\n{err}",
         "lang_restart": "Restart Isolate now to apply the language?\n"
@@ -666,10 +682,125 @@ def download_youtube(url: str, temp_dir: str,
 
 _SEPARATOR_CACHE: dict[str, object] = {}
 
+# Chunked separation keeps TensorFlow's peak memory flat regardless of track
+# length: separating a whole 3.5 min song at once peaks at ~10 GB of commit
+# in 5-stems mode, which kills 8 GB machines with "Graph execution error".
+_CHUNK_S = 30.0          # seconds of audio fed to the model per prediction
+_XFADE_S = 2.0           # crossfaded overlap between consecutive chunks
+
+# A completed model download contains ".probe" plus these checkpoint files;
+# anything less and TensorFlow either crashes mid-graph or silently runs
+# with UNTRAINED weights (stems come out as the full mix at -6 dB).
+_MODEL_FILES = (".probe", "checkpoint", "model.data-00000-of-00001",
+                "model.index", "model.meta")
+
+_OOM_MARKERS = ("oom when allocating", "resource exhausted",
+                "resourceexhausted", "failed to allocate", "out of memory",
+                "not enough memory", "bad_alloc")
+_CORRUPT_MODEL_MARKERS = ("data loss", "datalosserror", "checksum",
+                          "corrupt", "unable to open table", "truncated",
+                          "failed to find any matching files", "restor")
+
+
+def _model_dir(model_spec: str) -> Path:
+    return _MODELS_DIR / model_spec.split(":", 1)[1].split("-")[0]
+
+
+def _model_is_broken(model_dir: Path) -> bool:
+    """True when the model folder is missing checkpoint files or has
+    empty ones (interrupted download/extraction)."""
+    for name in _MODEL_FILES:
+        f = model_dir / name
+        if not f.exists() or f.stat().st_size == 0:
+            return True
+    return False
+
+
+def _purge_model(model_spec: str) -> None:
+    """Drop the cached Separator and delete the model folder so the next
+    attempt re-downloads it from scratch."""
+    _SEPARATOR_CACHE.pop(model_spec, None)
+    shutil.rmtree(_model_dir(model_spec), ignore_errors=True)
+
+
+def _classify_separation_error(exc: Exception) -> str | None:
+    """Map a TensorFlow/Spleeter failure to "oom", "corrupt" or None.
+    TF wraps everything in a generic "Graph execution error", so the real
+    cause has to be sniffed from the message text."""
+    if isinstance(exc, MemoryError):
+        return "oom"
+    text = f"{type(exc).__name__}: {exc}".lower()
+    if any(m in text for m in _OOM_MARKERS):
+        return "oom"
+    if any(m in text for m in _CORRUPT_MODEL_MARKERS):
+        return "corrupt"
+    return None
+
+
+def _prepare_separation_input(source_wav: str, temp_dir: str) -> str:
+    """Return a 44.1 kHz stereo WAV for `source_wav`, converting through
+    ffmpeg only when the source is at another rate / channel count."""
+    info = sf.info(source_wav)
+    if info.samplerate == 44100 and info.channels == 2:
+        return source_wav
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        raise MediaError(L("err_no_ffmpeg"))
+    out_wav = os.path.join(temp_dir, f"sep_input_{uuid.uuid4().hex[:12]}.wav")
+    cmd = [ffmpeg, "-y", "-i", source_wav, "-vn", "-ar", "44100", "-ac", "2",
+           "-acodec", "pcm_f32le", out_wav]
+    proc = subprocess.run(cmd, capture_output=True, text=True,
+                          creationflags=getattr(subprocess,
+                                                "CREATE_NO_WINDOW", 0))
+    if proc.returncode != 0 or not os.path.exists(out_wav):
+        raise MediaError(L("err_decode", name=Path(source_wav).name,
+                           err=proc.stderr[-400:]))
+    return out_wav
+
+
+def _separate_chunked(sep, wav_path: str, instruments: list[str],
+                      progress) -> dict[str, np.ndarray]:
+    """
+    Separate `wav_path` in _CHUNK_S-second chunks with an _XFADE_S linear
+    crossfade at the seams. Returns {instrument: float32 array of shape
+    (n_frames, 2)} at 44.1 kHz, same length as the input.
+    """
+    info = sf.info(wav_path)
+    total, sr = info.frames, info.samplerate
+    chunk = int(_CHUNK_S * sr)
+    fade = int(_XFADE_S * sr)
+    step = chunk - fade
+    n_chunks = (1 + (total - chunk + step - 1) // step if total > chunk
+                else 1)
+
+    out = {inst: np.zeros((total, 2), np.float32) for inst in instruments}
+    for ci in range(n_chunks):
+        progress(L("st_sep_chunk", i=ci + 1, n=n_chunks))
+        start = ci * step
+        stop = min(start + chunk, total)
+        seg, _sr = sf.read(wav_path, start=start, stop=stop,
+                           dtype="float32", always_2d=True)
+        result = sep.separate(seg)
+        for inst in instruments:
+            if inst not in result:
+                raise MediaError(L("err_stem_missing", name=inst))
+            arr = np.asarray(result[inst], dtype=np.float32)
+            n = min(len(arr), total - start)
+            buf = out[inst]
+            if ci == 0:
+                buf[:n] = arr[:n]
+                continue
+            f = min(fade, n)
+            ramp = np.linspace(0.0, 1.0, f, dtype=np.float32)[:, None]
+            buf[start:start + f] *= 1.0 - ramp
+            buf[start:start + f] += arr[:f] * ramp
+            buf[start + f:start + n] = arr[f:n]
+    return out
+
 
 def separate_stems(source_wav: str, model_spec: str, stem_order: list[str],
-                   duration_s: float, temp_dir: str,
-                   progress) -> list[tuple[str, np.ndarray]]:
+                   temp_dir: str, progress,
+                   allow_retry: bool = True) -> list[tuple[str, np.ndarray]]:
     """
     Run Spleeter on `source_wav` and return the stems, in `stem_order`,
     as (display_name, float32 array) pairs at 44.1 kHz.
@@ -680,37 +811,38 @@ def separate_stems(source_wav: str, model_spec: str, stem_order: list[str],
     sep = _SEPARATOR_CACHE.get(model_spec)
     if sep is None:
         # Guard against a partially-downloaded model: Spleeter skips the
-        # download whenever the model directory exists, and TensorFlow then
-        # silently runs with UNTRAINED weights (stems come out as the full
-        # mix at -6 dB). A completed download always contains ".probe".
-        model_dir = _MODELS_DIR / model_spec.split(":", 1)[1].split("-")[0]
-        if model_dir.exists() and not (model_dir / ".probe").exists():
+        # download whenever the model directory exists (see _MODEL_FILES).
+        model_dir = _model_dir(model_spec)
+        if model_dir.exists() and _model_is_broken(model_dir):
             log.warning("Removing broken model directory: %s", model_dir)
             shutil.rmtree(model_dir, ignore_errors=True)
-        if not (model_dir / ".probe").exists():
+        if not model_dir.exists():
             progress(L("st_model_dl"))
         sep = Separator(model_spec, multiprocess=False)
         _SEPARATOR_CACHE[model_spec] = sep
 
-    progress(L("st_separating"))
-    out_dir = os.path.join(temp_dir, "stems")
-    os.makedirs(out_dir, exist_ok=True)
-    # default duration kwarg truncates at 600 s — pass the real length
-    sep.separate_to_file(source_wav, out_dir, codec="wav",
-                         duration=duration_s + 1.0,
-                         filename_format="{filename}/{instrument}.{codec}",
-                         synchronous=True)
+    prepared = _prepare_separation_input(source_wav, temp_dir)
+    try:
+        separated = _separate_chunked(sep, prepared, stem_order, progress)
+    except MediaError:
+        raise
+    except Exception as exc:
+        kind = _classify_separation_error(exc)
+        if kind == "oom":
+            raise MediaError(L("err_oom")) from exc
+        if kind == "corrupt":
+            log.warning("Model %s looks corrupted (%s); purging.",
+                        model_spec, exc)
+            _purge_model(model_spec)
+            if allow_retry:
+                progress(L("st_model_retry"))
+                return separate_stems(source_wav, model_spec, stem_order,
+                                      temp_dir, progress, allow_retry=False)
+            raise MediaError(L("err_model_corrupt")) from exc
+        raise
 
-    base = Path(source_wav).stem
-    stems = []
-    for instrument in stem_order:
-        stem_path = os.path.join(out_dir, base, f"{instrument}.wav")
-        if not os.path.exists(stem_path):
-            raise MediaError(L("err_stem_missing", name=instrument))
-        data, _sr = sf.read(stem_path, dtype="float32", always_2d=True)
-        stems.append((STEM_LABELS.get(instrument,
-                                      instrument.capitalize()), data))
-    return stems
+    return [(STEM_LABELS.get(inst, inst.capitalize()), separated[inst])
+            for inst in stem_order]
 
 
 def export_mix(mix: np.ndarray, samplerate: int, out_path: str,
@@ -1494,9 +1626,8 @@ class IsolateApp(_Root):
         self._run_async(self._task_separate, model_spec, stem_order)
 
     def _task_separate(self, model_spec: str, stem_order: list[str]) -> None:
-        duration = self.engine.duration_seconds
         stems = separate_stems(self.source_wav, model_spec, stem_order,
-                               duration, self.temp_dir, self._status_async)
+                               self.temp_dir, self._status_async)
         sr = 44100    # Spleeter models always render at 44.1 kHz
         self.after(0, lambda: self._install_tracks(
             stems, sr, L("st_sep_done", n=len(stems))))
