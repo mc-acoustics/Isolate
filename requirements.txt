@@ -4,6 +4,13 @@
 # Separation engine (pulls in tensorflow, librosa, norbert, etc.)
 spleeter==2.4.0
 
+# Second separation engine: Demucs (htdemucs_6s, guitar stem), CPU-only.
+# torch pinned <2.6: newer versions default torch.load(weights_only=True),
+# which breaks loading Demucs 4.0.1 checkpoints.
+torch==2.1.2
+torchaudio==2.1.2
+demucs==4.0.1
+
 # Spleeter's dependency stack needs NumPy 1.x
 numpy>=1.23,<2.0
 
