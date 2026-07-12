@@ -44,6 +44,9 @@ _MODELS_DIR = _APPDATA_DIR / "pretrained_models"
 _MODELS_DIR.mkdir(parents=True, exist_ok=True)
 # Spleeter reads the MODEL_PATH env var to decide where pretrained models live.
 os.environ.setdefault("MODEL_PATH", str(_MODELS_DIR))
+# PyTorch/Demucs cache (hub checkpoints) also stays under our app folder.
+_TORCH_DIR = _APPDATA_DIR / "torch"
+os.environ.setdefault("TORCH_HOME", str(_TORCH_DIR))
 
 # Under pythonw / --windowed builds there is no console: sys.stdout and
 # sys.stderr are None, and anything that writes to them (tqdm progress
@@ -123,6 +126,7 @@ I18N: dict[str, dict[str, str]] = {
         "stems2": "2 Stems (Vocais / Acompanhamento)",
         "stems4": "4 Stems (Vocais / Bateria / Baixo / Outros)",
         "stems5": "5 Stems (Vocais / Bateria / Baixo / Piano / Outros)",
+        "stems6": "6 Stems — Demucs (com Guitarra; mais lento)",
         "btn_separate": "Separar Faixas",
         "lbl_analysis": "A N Á L I S E   M U S I C A L",
         "chip_key": "TOM",
@@ -136,6 +140,9 @@ I18N: dict[str, dict[str, str]] = {
         "stem_vocals": "Vocais", "stem_drums": "Bateria",
         "stem_bass": "Baixo", "stem_piano": "Piano",
         "stem_other": "Outros", "stem_accompaniment": "Acompanhamento",
+        "stem_guitar": "Guitarra",
+        "st_engine_demucs": "Carregando o motor de separação "
+                            "(Demucs/PyTorch)...",
         "dlg_open_title": "Abrir arquivo de áudio",
         "dlg_export_title": "Exportar mix",
         "ft_audio": "Áudio / vídeo", "ft_all": "Todos os arquivos",
@@ -151,7 +158,8 @@ I18N: dict[str, dict[str, str]] = {
         "st_engine": "Carregando o motor de separação (TensorFlow)...",
         "st_model_dl": "Baixando modelo pré-treinado (só na primeira vez)...",
         "st_separating": "Separando o áudio... isso pode levar alguns minutos.",
-        "st_sep_chunk": "Separando o áudio... bloco {i} de {n}.",
+        "st_sep_chunk": "As faixas estão sendo separadas ({pct}%)... isso "
+                        "pode levar alguns minutos — vá fazer um café ☕",
         "st_model_retry": "Modelo corrompido detectado — baixando de novo...",
         "st_sep_done": "Separação concluída — {n} stems prontos.",
         "st_render": "Renderizando o mixdown...",
@@ -199,6 +207,7 @@ I18N: dict[str, dict[str, str]] = {
         "stems2": "2 Stems (Vocals / Accompaniment)",
         "stems4": "4 Stems (Vocals / Drums / Bass / Other)",
         "stems5": "5 Stems (Vocals / Drums / Bass / Piano / Other)",
+        "stems6": "6 Stems — Demucs (with Guitar; slower)",
         "btn_separate": "Separate Tracks",
         "lbl_analysis": "M U S I C A L   A N A L Y S I S",
         "chip_key": "KEY",
@@ -212,6 +221,9 @@ I18N: dict[str, dict[str, str]] = {
         "stem_vocals": "Vocals", "stem_drums": "Drums",
         "stem_bass": "Bass", "stem_piano": "Piano",
         "stem_other": "Other", "stem_accompaniment": "Accompaniment",
+        "stem_guitar": "Guitar",
+        "st_engine_demucs": "Loading separation engine "
+                            "(Demucs/PyTorch)...",
         "dlg_open_title": "Open audio file",
         "dlg_export_title": "Export mix",
         "ft_audio": "Audio / video", "ft_all": "All files",
@@ -227,7 +239,8 @@ I18N: dict[str, dict[str, str]] = {
         "st_engine": "Loading separation engine (TensorFlow)...",
         "st_model_dl": "Downloading pretrained model (first run only)...",
         "st_separating": "Separating audio... this can take a few minutes.",
-        "st_sep_chunk": "Separating audio... chunk {i} of {n}.",
+        "st_sep_chunk": "Your tracks are being separated ({pct}%)... this "
+                        "can take a few minutes — go grab a coffee ☕",
         "st_model_retry": "Corrupted model detected — downloading it again...",
         "st_sep_done": "Separation complete — {n} stems ready.",
         "st_render": "Rendering mixdown...",
@@ -278,6 +291,8 @@ STEM_MODELS = {
                                             "bass", "other"]),
     L("stems5"): ("spleeter:5stems-16kHz", ["vocals", "drums",
                                             "bass", "piano", "other"]),
+    L("stems6"): ("demucs:htdemucs_6s", ["vocals", "drums", "bass",
+                                         "guitar", "piano", "other"]),
 }
 
 BLOCKSIZE = 1024          # frames per audio callback (~23 ms @ 44.1 kHz)
@@ -321,7 +336,7 @@ MONO_FAMILY = "Consolas"
 
 STEM_LABELS = {inst: L(f"stem_{inst}")
                for inst in ("vocals", "drums", "bass", "piano",
-                            "other", "accompaniment")}
+                            "other", "accompaniment", "guitar")}
 
 
 def key_short(key: str | None) -> str | None:
@@ -696,10 +711,12 @@ _MODEL_FILES = (".probe", "checkpoint", "model.data-00000-of-00001",
 
 _OOM_MARKERS = ("oom when allocating", "resource exhausted",
                 "resourceexhausted", "failed to allocate", "out of memory",
-                "not enough memory", "bad_alloc")
+                "not enough memory", "bad_alloc", "defaultcpuallocator")
 _CORRUPT_MODEL_MARKERS = ("data loss", "datalosserror", "checksum",
                           "corrupt", "unable to open table", "truncated",
-                          "failed to find any matching files", "restor")
+                          "failed to find any matching files", "restor",
+                          "pytorchstreamreader", "invalid load key",
+                          "unexpected eof", "central directory")
 
 
 def _model_dir(model_spec: str) -> Path:
@@ -717,10 +734,13 @@ def _model_is_broken(model_dir: Path) -> bool:
 
 
 def _purge_model(model_spec: str) -> None:
-    """Drop the cached Separator and delete the model folder so the next
-    attempt re-downloads it from scratch."""
+    """Drop the cached separator and delete the model files so the next
+    attempt re-downloads them from scratch."""
     _SEPARATOR_CACHE.pop(model_spec, None)
-    shutil.rmtree(_model_dir(model_spec), ignore_errors=True)
+    if model_spec.startswith("demucs:"):
+        shutil.rmtree(_TORCH_DIR / "hub" / "checkpoints", ignore_errors=True)
+    else:
+        shutil.rmtree(_model_dir(model_spec), ignore_errors=True)
 
 
 def _classify_separation_error(exc: Exception) -> str | None:
@@ -758,6 +778,41 @@ def _prepare_separation_input(source_wav: str, temp_dir: str) -> str:
     return out_wav
 
 
+class _DemucsSeparator:
+    """Adapter exposing Spleeter's `.separate(waveform) -> dict` interface
+    for a Demucs model, so `_separate_chunked` drives both engines. CPU
+    only; apply_model already splits each call into ~8 s segments with
+    overlap, keeping memory bounded."""
+
+    def __init__(self, model_name: str):
+        import torch                          # heavy imports, keep lazy
+        from demucs.pretrained import get_model
+        self._torch = torch
+        self._model = get_model(model_name)
+        self._model.cpu()
+        self._model.eval()
+        self.sources = list(self._model.sources)
+
+    def separate(self, waveform: np.ndarray) -> dict[str, np.ndarray]:
+        from demucs.apply import apply_model
+        torch = self._torch
+        wav = torch.from_numpy(
+            np.ascontiguousarray(waveform.T)).float()      # (2, n)
+        # Demucs expects input normalized to zero mean / unit std
+        # (same as demucs.separate does), undone on the way out.
+        ref = wav.mean(0)
+        mean, std = ref.mean(), ref.std() + 1e-8
+        wav = (wav - mean) / std
+        with torch.no_grad():
+            out = apply_model(self._model, wav[None], device="cpu",
+                              shifts=0, split=True, overlap=0.25,
+                              progress=False)[0]
+        out = out * std + mean                # (n_sources, 2, n)
+        arr = out.cpu().numpy()
+        return {src: np.ascontiguousarray(arr[i].T)
+                for i, src in enumerate(self.sources)}
+
+
 def _separate_chunked(sep, wav_path: str, instruments: list[str],
                       progress) -> dict[str, np.ndarray]:
     """
@@ -775,7 +830,7 @@ def _separate_chunked(sep, wav_path: str, instruments: list[str],
 
     out = {inst: np.zeros((total, 2), np.float32) for inst in instruments}
     for ci in range(n_chunks):
-        progress(L("st_sep_chunk", i=ci + 1, n=n_chunks))
+        progress(L("st_sep_chunk", pct=int(100 * ci / n_chunks)))
         start = ci * step
         stop = min(start + chunk, total)
         seg, _sr = sf.read(wav_path, start=start, stop=stop,
@@ -805,20 +860,31 @@ def separate_stems(source_wav: str, model_spec: str, stem_order: list[str],
     Run Spleeter on `source_wav` and return the stems, in `stem_order`,
     as (display_name, float32 array) pairs at 44.1 kHz.
     """
-    progress(L("st_engine"))
-    from spleeter.separator import Separator   # heavy import, keep lazy
+    is_demucs = model_spec.startswith("demucs:")
+    progress(L("st_engine_demucs" if is_demucs else "st_engine"))
 
     sep = _SEPARATOR_CACHE.get(model_spec)
     if sep is None:
-        # Guard against a partially-downloaded model: Spleeter skips the
-        # download whenever the model directory exists (see _MODEL_FILES).
-        model_dir = _model_dir(model_spec)
-        if model_dir.exists() and _model_is_broken(model_dir):
-            log.warning("Removing broken model directory: %s", model_dir)
-            shutil.rmtree(model_dir, ignore_errors=True)
-        if not model_dir.exists():
-            progress(L("st_model_dl"))
-        sep = Separator(model_spec, multiprocess=False)
+        if is_demucs:
+            # torch.hub downloads atomically and demucs verifies the
+            # checksum itself; a corrupted file surfaces as an exception
+            # handled below (purge + retry).
+            ckpt_dir = _TORCH_DIR / "hub" / "checkpoints"
+            if not (ckpt_dir.exists() and any(ckpt_dir.glob("*.th"))):
+                progress(L("st_model_dl"))
+            sep = _DemucsSeparator(model_spec.split(":", 1)[1])
+        else:
+            from spleeter.separator import Separator   # heavy, keep lazy
+            # Guard against a partially-downloaded model: Spleeter skips
+            # the download whenever the model directory exists (see
+            # _MODEL_FILES).
+            model_dir = _model_dir(model_spec)
+            if model_dir.exists() and _model_is_broken(model_dir):
+                log.warning("Removing broken model directory: %s", model_dir)
+                shutil.rmtree(model_dir, ignore_errors=True)
+            if not model_dir.exists():
+                progress(L("st_model_dl"))
+            sep = Separator(model_spec, multiprocess=False)
         _SEPARATOR_CACHE[model_spec] = sep
 
     prepared = _prepare_separation_input(source_wav, temp_dir)
@@ -1328,7 +1394,7 @@ class IsolateApp(_Root):
                      text_color=COL_TEXT_2,
                      font=ctk.CTkFont(family=UI_FAMILY, size=12,
                                       weight="bold")
-                     ).grid(row=0, column=0, rowspan=3,
+                     ).grid(row=0, column=0, rowspan=len(STEM_MODELS),
                             padx=(24, 18), pady=10, sticky="w")
 
         self.stem_var = ctk.StringVar(value=L("stems4"))
@@ -1348,7 +1414,7 @@ class IsolateApp(_Root):
             hover_color=BTN_PRI_HOV,
             font=ctk.CTkFont(family=UI_FAMILY, size=15, weight="bold"),
             command=self._on_separate)
-        self.separate_btn.grid(row=0, column=3, rowspan=3,
+        self.separate_btn.grid(row=0, column=3, rowspan=len(STEM_MODELS),
                                padx=24, pady=10, sticky="e")
 
         # ---------- Musical analysis panel ----------
@@ -1757,6 +1823,12 @@ class IsolateApp(_Root):
         state = "disabled" if busy else "normal"
         for btn in (self.separate_btn, self.download_btn, self.export_btn):
             btn.configure(state=state)
+        # native Windows spinner while a worker is busy ("watch" maps to
+        # the OS loading cursor; "" restores the default arrow)
+        try:
+            self.configure(cursor="watch" if busy else "")
+        except tk.TclError:
+            pass
 
     def _status_async(self, text: str) -> None:
         """Thread-safe status update (called from worker threads)."""
@@ -1819,5 +1891,23 @@ def main() -> None:
     app.mainloop()
 
 
+def _selftest(argv: list[str]) -> None:
+    """Headless separation check (`Isolate.exe --selftest song.wav
+    [model_spec]`), used to validate frozen builds; output lands in
+    isolate.log under --windowed."""
+    wav = argv[0]
+    spec = argv[1] if len(argv) > 1 else "spleeter:2stems-16kHz"
+    order = next(o for s, o in STEM_MODELS.values() if s == spec)
+    tmp = tempfile.mkdtemp(prefix="isolate_selftest_")
+    try:
+        stems = separate_stems(wav, spec, order, tmp, progress=print)
+        print("SELFTEST OK:", [(n, a.shape) for n, a in stems])
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 if __name__ == "__main__":
+    if len(sys.argv) >= 3 and sys.argv[1] == "--selftest":
+        _selftest(sys.argv[2:])
+        sys.exit(0)
     main()

@@ -44,6 +44,8 @@ pyinstaller ^
   --collect-all spleeter ^
   --collect-all tensorflow ^
   --collect-all norbert ^
+  --collect-all demucs ^
+  --collect-all dora ^
   --collect-all customtkinter ^
   --collect-all tkinterdnd2 ^
   --collect-all yt_dlp ^
