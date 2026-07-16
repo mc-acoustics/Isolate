@@ -25,6 +25,27 @@ detecção automática de tom e BPM, e export do seu mix. Interface em
 - **Offline e privado**: nada sai da sua máquina; os modelos são baixados
   uma única vez no primeiro uso.
 
+## Requisitos de sistema
+
+|              | Mínimo                              | Recomendado                        |
+|--------------|-------------------------------------|------------------------------------|
+| **Sistema**  | Windows 10 64-bit                   | Windows 10/11 64-bit               |
+| **CPU**      | x64 com suporte a AVX (Intel/AMD de ~2012 em diante) | 4+ núcleos (ex.: Core i5 / Ryzen 5) |
+| **RAM**      | 4 GB                                | 8 GB ou mais                       |
+| **Disco**    | ~3 GB livres                        | 4 GB livres, de preferência SSD    |
+| **GPU**      | Não é necessária — tudo roda em CPU | —                                  |
+
+- **RAM**: a separação roda em blocos de 30 s, com pico medido de
+  ~3,7 GB (Spleeter 5 stems) e ~2,3 GB (Demucs 6 stems). Em um PC de
+  4 GB o 5 stems funciona, mas o computador fica lento durante a
+  separação — 8 GB dão folga.
+- **Disco**: app descompactado ocupa ~2 GB; os modelos baixados no
+  primeiro uso somam ~470 MB (Spleeter ~420 MB + Demucs ~50 MB).
+- **Velocidade** (referência em um Ryzen 5 7600): Spleeter 5 stems
+  separa uma faixa de 3:32 em ~40 s; Demucs 6 stems leva ~2,5 min
+  (~0,7× a duração da faixa). CPUs mais antigas funcionam, só demoram
+  mais.
+
 ## Instalação e uso
 
 Veja o passo a passo em [SETUP.md](SETUP.md). Resumo:
@@ -95,6 +116,26 @@ automatic key and BPM detection, and mix export. Interface available in
 - **Selectable language**: Portuguese (BR) or English.
 - **Offline and private**: nothing leaves your machine; models are
   downloaded once on first use.
+
+## System requirements
+
+|             | Minimum                              | Recommended                         |
+|-------------|--------------------------------------|-------------------------------------|
+| **OS**      | Windows 10 64-bit                    | Windows 10/11 64-bit                |
+| **CPU**     | x64 with AVX support (Intel/AMD from ~2012 onwards) | 4+ cores (e.g. Core i5 / Ryzen 5) |
+| **RAM**     | 4 GB                                 | 8 GB or more                        |
+| **Storage** | ~3 GB free                           | 4 GB free, preferably on an SSD     |
+| **GPU**     | Not required — everything runs on CPU | —                                  |
+
+- **RAM**: separation runs in 30-second chunks, with a measured peak of
+  ~3.7 GB (Spleeter 5 stems) and ~2.3 GB (Demucs 6 stems). On a 4 GB PC
+  the 5-stem mode works, but the machine slows down during separation —
+  8 GB gives comfortable headroom.
+- **Storage**: the unpacked app takes ~2 GB; models downloaded on first
+  use add ~470 MB (Spleeter ~420 MB + Demucs ~50 MB).
+- **Speed** (reference on a Ryzen 5 7600): Spleeter 5 stems separates a
+  3:32 track in ~40 s; Demucs 6 stems takes ~2.5 min (~0.7× the track
+  duration). Older CPUs work fine, they just take longer.
 
 ## Install and run
 
