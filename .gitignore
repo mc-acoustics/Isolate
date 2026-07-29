@@ -20,3 +20,9 @@ promo/
 
 # Reports de usuários (local — contém usernames/prints)
 reports/
+
+# Zips de release (vão para GitHub Releases, nunca para o repo — >100 MB)
+Isolate-v*-win64.zip
+
+# Fontes draw.io dos diagramas (locais por decisão de 17/07/2026)
+docs/*.drawio
