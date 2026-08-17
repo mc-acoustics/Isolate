@@ -15,6 +15,10 @@ isolate.log
 # Diário de desenvolvimento — NUNCA publicar (regra do usuário, 09/07/2026)
 CLAUDE.md
 
+# Especificação original — local (removida do repo e do histórico em
+# 17/08/2026 a pedido do usuário)
+SPEC.md
+
 # Material de divulgação (local)
 promo/
 
