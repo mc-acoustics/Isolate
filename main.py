@@ -39,6 +39,7 @@ from tkinter import filedialog, messagebox
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")   # silence TF chatter
 
 _APP_NAME = "Isolate"
+APP_VERSION = "2.1.2"
 _APPDATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / _APP_NAME
 _MODELS_DIR = _APPDATA_DIR / "pretrained_models"
 _MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -127,11 +128,34 @@ I18N: dict[str, dict[str, str]] = {
         "stems4": "4 Stems (Vocais / Bateria / Baixo / Outros)",
         "stems5": "5 Stems (Vocais / Bateria / Baixo / Piano / Outros)",
         "stems6": "6 Stems — Demucs (com Guitarra; mais lento)",
+        # compact mode picker (v2.1.1): short label on the pill, full stem
+        # list on the caption line beside it
+        "stems2_short": "2 Stems",
+        "stems4_short": "4 Stems",
+        "stems5_short": "5 Stems",
+        "stems6_short": "6 Stems",
+        "stems2_desc": "Vocais / Acompanhamento",
+        "stems4_desc": "Vocais / Bateria / Baixo / Outros",
+        "stems5_desc": "Vocais / Bateria / Baixo / Piano / Outros",
+        "stems6_desc": "Demucs: Vocais / Bateria / Baixo / Guitarra / "
+                       "Piano / Outros — mais lento",
         "btn_separate": "Separar Faixas",
         "lbl_analysis": "A N Á L I S E   M U S I C A L",
         "chip_key": "TOM",
         "btn_analyze": "Detectar Tom & BPM",
         "mixer_hint": "Carregue um arquivo de áudio para começar.",
+        "mixer_title": "M I X E R",
+        "layout_rows": "Linhas",
+        "layout_strips": "Canais",
+        "contact_title": "Contato",
+        "contact_head": "Dúvidas e sugestões",
+        "contact_body": "Escreva para o criador do Isolate — retorno de "
+                        "bugs, ideias e pedidos de recurso são bem-vindos.",
+        "contact_write": "Escrever e-mail",
+        "contact_copy": "Copiar e-mail",
+        "contact_copied": "E-mail copiado para a área de transferência.",
+        "contact_close": "Fechar",
+        "contact_version": "Versão {v}",
         "btn_export": "Exportar Mix",
         "status_ready": "●  Pronto.",
         "footer": "Ferramenta educacional para separação de instrumentos "
@@ -172,6 +196,10 @@ I18N: dict[str, dict[str, str]] = {
         "st_nothing_export": "Nada para exportar — carregue um áudio primeiro.",
         "st_load_first": "Carregue um arquivo de áudio primeiro.",
         "st_analysis": "Análise: {key}, {bpm} BPM.",
+        "metro_label": "METRÔNOMO",
+        "st_metro_unavailable": "O pulso ainda não foi detectado — "
+                                "carregue e analise uma faixa primeiro.",
+        "st_exported_metro": "Exportado: {path} (+ metrônomo: {metro})",
         "st_playback_err": "Erro de reprodução: {exc}",
         "st_device_err": "Erro no dispositivo: {exc}",
         "st_no_ffmpeg": "Aviso: ffmpeg não encontrado no PATH — carregar "
@@ -208,11 +236,32 @@ I18N: dict[str, dict[str, str]] = {
         "stems4": "4 Stems (Vocals / Drums / Bass / Other)",
         "stems5": "5 Stems (Vocals / Drums / Bass / Piano / Other)",
         "stems6": "6 Stems — Demucs (with Guitar; slower)",
+        "stems2_short": "2 Stems",
+        "stems4_short": "4 Stems",
+        "stems5_short": "5 Stems",
+        "stems6_short": "6 Stems",
+        "stems2_desc": "Vocals / Accompaniment",
+        "stems4_desc": "Vocals / Drums / Bass / Other",
+        "stems5_desc": "Vocals / Drums / Bass / Piano / Other",
+        "stems6_desc": "Demucs: Vocals / Drums / Bass / Guitar / Piano / "
+                       "Other — slower",
         "btn_separate": "Separate Tracks",
         "lbl_analysis": "M U S I C A L   A N A L Y S I S",
         "chip_key": "KEY",
         "btn_analyze": "Detect Key & BPM",
         "mixer_hint": "Load an audio file to get started.",
+        "mixer_title": "M I X E R",
+        "layout_rows": "Rows",
+        "layout_strips": "Strips",
+        "contact_title": "Contact",
+        "contact_head": "Questions & suggestions",
+        "contact_body": "Write to the creator of Isolate — bug reports, "
+                        "ideas and feature requests are welcome.",
+        "contact_write": "Write e-mail",
+        "contact_copy": "Copy e-mail",
+        "contact_copied": "E-mail copied to the clipboard.",
+        "contact_close": "Close",
+        "contact_version": "Version {v}",
         "btn_export": "Export Mix",
         "status_ready": "●  Ready.",
         "footer": "Educational tool for instrument separation and musical "
@@ -253,6 +302,10 @@ I18N: dict[str, dict[str, str]] = {
         "st_nothing_export": "Nothing to export — load audio first.",
         "st_load_first": "Load an audio file first.",
         "st_analysis": "Analysis: {key}, {bpm} BPM.",
+        "metro_label": "METRONOME",
+        "st_metro_unavailable": "Beat grid not detected yet — load and "
+                                "analyze a track first.",
+        "st_exported_metro": "Exported: {path} (+ metronome: {metro})",
         "st_playback_err": "Playback error: {exc}",
         "st_device_err": "Device error: {exc}",
         "st_no_ffmpeg": "Warning: ffmpeg not found on PATH — MP3/M4A/MP4 "
@@ -295,6 +348,27 @@ STEM_MODELS = {
                                          "guitar", "piano", "other"]),
 }
 
+# v2.1.1 — the separation mode used to be a 4-row radio stack, which ate
+# ~110 px of vertical space and squeezed the mixer to ~1 visible strip on
+# 768 px laptop screens. It is now one pill row (short labels) plus a
+# caption line with the full stem list of the selected mode.
+STEM_SHORT: list[str] = [L("stems2_short"), L("stems4_short"),
+                         L("stems5_short"), L("stems6_short")]
+_SHORT_TO_FULL: dict[str, str] = dict(zip(STEM_SHORT, STEM_MODELS.keys()))
+STEM_DESC: dict[str, str] = {
+    L("stems2_short"): L("stems2_desc"),
+    L("stems4_short"): L("stems4_desc"),
+    L("stems5_short"): L("stems5_desc"),
+    L("stems6_short"): L("stems6_desc"),
+}
+
+# Mixer layout: "rows" = horizontal channel rows (classic Isolate look),
+# "strips" = vertical console strips side by side (fits every stem on a
+# short screen without scrolling). Persisted, applied without a restart.
+MIXER_LAYOUT = _SETTINGS.get("mixer_layout", "rows")
+if MIXER_LAYOUT not in ("rows", "strips"):
+    MIXER_LAYOUT = "rows"
+
 BLOCKSIZE = 1024          # frames per audio callback (~23 ms @ 44.1 kHz)
 UI_POLL_MS = 66           # transport / status / VU-meter poll interval
 METER_FLOOR_DB = -60.0    # VU meter display floor ("-inf" end of the scale)
@@ -327,7 +401,7 @@ BTN_GHOST_BRD = "#2c2c31"
 BTN_GHOST_HOV = "#2f2f35"
 OK_GREEN = "#6fae7c"        # "Pronto." / file-loaded indicator
 MASTER_BORDER = "#4a3d26"   # amber @25%
-RADIO_RING = "#55534e"
+RADIO_RING = "#55534e"      # legacy radio ring (tema §5); kept for reference
 
 # Set to Outfit / Spline Sans Mono at startup when installed (tema §3);
 # otherwise the spec's fallbacks below are kept.
@@ -421,6 +495,10 @@ class AudioEngine:
         self.master_gain = 1.0               # master fader (0.0 .. 1.0)
         self.levels = np.zeros(0)            # per-track post-fader peak
         self.master_level = 0.0              # post-master peak (pre-clip)
+        self.click_track: np.ndarray | None = None   # mono metronome buffer
+        self.beat_times: np.ndarray | None = None    # beat grid (seconds)
+        self.metronome_on = False
+        self.metronome_gain = 0.8            # independent of master_gain
         self._stream: sd.OutputStream | None = None
         self._position = 0
         self._playing = False
@@ -473,8 +551,22 @@ class AudioEngine:
             self.samplerate = samplerate
             self.levels = np.zeros(len(tracks))
             self.master_level = 0.0
+            self.click_track = None       # stale beat grid: new material
+            self.beat_times = None
+            self.metronome_on = False
         if rate_changed:
             self._close_stream()
+
+    def set_click_track(self, click: np.ndarray | None,
+                        beat_times: np.ndarray | None = None) -> None:
+        """Swap the metronome buffer + beat grid (thread-safe). `None`
+        means the beat grid could not be detected, which also forces the
+        metronome off."""
+        with self._lock:
+            self.click_track = click
+            self.beat_times = beat_times if click is not None else None
+            if click is None:
+                self.metronome_on = False
 
     # -- device / stream -----------------------------------------------------
 
@@ -563,6 +655,13 @@ class AudioEngine:
                     self.levels[i] = 0.0
             mix *= self.master_gain
             self.master_level = float(np.max(np.abs(mix)))
+            # metronome click: injected POST-master (control-room style),
+            # so the master fader never silences the practice click; the
+            # master VU keeps showing the music mix only
+            if self.metronome_on and self.click_track is not None:
+                c = self.click_track[pos:end]
+                if len(c):
+                    mix[:len(c)] += (c * self.metronome_gain)[:, None]
             # clipping prevention: hard ceiling at full scale
             np.clip(mix, -1.0, 1.0, out=mix)
             outdata[:] = mix
@@ -972,49 +1071,308 @@ def _stft_mag(mono: np.ndarray, sr: int, n_fft: int,
     return np.abs(np.fft.rfft(frames, axis=1)), np.fft.rfftfreq(n_fft, 1.0 / sr)
 
 
-def detect_bpm(mono: np.ndarray, sr: int) -> float | None:
+# Onset-envelope resolution. The hop is the quantization step of every
+# beat time, so it caps how tightly the click can sit on the kick:
+# 256 samples = 5.8 ms at 44.1 kHz (512 was 11.6 ms and audibly loose).
+_ONSET_NFFT = 1024
+_ONSET_HOP = 256
+# Frame -> time correction. A frame spans [k*hop, k*hop + n_fft) and its
+# Hann window peaks at the middle, so the flux of a transient starting at
+# sample s peaks on the frame with k*hop + n_fft/2 ~ s: the onset is
+# n_fft/(2*hop) frames LATER than the frame's start index (hence the
+# negative sign below). Measured against synthetic kicks in the tests.
+_ONSET_LAG_FRAMES = -(_ONSET_NFFT / (2.0 * _ONSET_HOP))
+# Tempo prior (Ellis 2007): most music is heard around 120 BPM; the width
+# is generous (octaves) so genuinely slow or fast tracks still win when
+# the evidence is there.
+_TEMPO_PRIOR_BPM = 120.0
+_TEMPO_PRIOR_OCT = 1.2
+
+
+def _percussive_weights(freqs: np.ndarray) -> np.ndarray:
     """
-    Tempo estimate in BPM via autocorrelation of the spectral-flux onset
-    envelope, searched over 60-200 BPM (folded into 70-180 when ambiguous).
+    Per-bin weights that emphasize the percussive part of the spectrum:
+    the kick band and the snare/hat transient band count double, while
+    250 Hz - 2 kHz — where sustained vocals and harmonic instruments live
+    — is halved. Sub-band onset weighting is standard practice (Klapuri
+    1999); the vocal de-emphasis follows Zapata & Gómez (2013), who show
+    predominant vocals mislead the onset envelope of a full mix.
     """
-    hop = 512
-    mag, _ = _stft_mag(mono, sr, n_fft=1024, hop=hop)
-    if len(mag) < 64:
+    w = np.ones_like(freqs, dtype=np.float32)
+    w[freqs < 150.0] = 2.0                                # kick
+    w[(freqs >= 250.0) & (freqs < 2000.0)] = 0.5          # voice / harmony
+    w[(freqs >= 2000.0) & (freqs < 10000.0)] = 2.0        # snare / hats
+    w[freqs >= 12000.0] = 0.7                             # hiss
+    return w
+
+
+def _onset_envelope(mono: np.ndarray, sr: int,
+                    n_fft: int = _ONSET_NFFT, hop: int = _ONSET_HOP,
+                    percussive: bool = True) -> np.ndarray:
+    """
+    Spectral-flux onset envelope of the WHOLE signal, computed in ~30 s
+    chunks so the strided STFT never materializes a huge frame matrix.
+    Envelope frame k covers samples [k*hop, k*hop + n_fft); see
+    _ONSET_LAG_FRAMES for the frame -> time convention.
+
+    With `percussive` (the default) the flux is taken on log-compressed
+    magnitudes and weighted per band: log compression keeps a quiet
+    hi-hat from being buried under a loud chorus, and the band weights
+    favour drums over voice. Set it False for a plain, unweighted flux.
+    """
+    step = max(hop, (int(30.0 * sr) // hop) * hop)
+    parts: list[np.ndarray] = []
+    prev_last: np.ndarray | None = None
+    weights: np.ndarray | None = None
+    ref = 0.0                        # log-compression reference level
+    for start in range(0, max(1, len(mono) - n_fft + 1), step):
+        seg = mono[start:start + step + n_fft - hop]
+        mag, freqs = _stft_mag(seg, sr, n_fft=n_fft, hop=hop)
+        if len(mag) == 0:
+            break
+        if percussive:
+            if weights is None:
+                weights = _percussive_weights(freqs)
+                pos = mag[mag > 0.0]
+                # one reference for the whole track, taken from the first
+                # chunk, so the compression is consistent across chunks
+                ref = float(np.median(pos)) if len(pos) else 1.0
+                ref = ref if ref > 1e-12 else 1.0
+            mag = np.log1p(mag / ref) * weights
+        prev = mag[:1] if prev_last is None else prev_last
+        flux = np.maximum(mag - np.vstack([prev, mag[:-1]]), 0.0).sum(axis=1)
+        if prev_last is None:
+            flux[0] = 0.0            # no predecessor for the first frame
+        prev_last = mag[-1:]
+        parts.append(flux.astype(np.float32))
+    if not parts:
+        return np.zeros(0, np.float32)
+    return np.concatenate(parts)
+
+
+def _bpm_from_flux(flux: np.ndarray,
+                   fps: float) -> tuple[float, float] | None:
+    """
+    (bpm, period_frames) from the autocorrelation of the onset envelope,
+    searched over 60-200 BPM (folded into 70-180 when ambiguous). FFT
+    autocorrelation keeps full-track envelopes O(n log n).
+    """
+    if len(flux) < 64:
         return None
-    flux = np.maximum(np.diff(mag, axis=0), 0.0).sum(axis=1)
-    flux -= flux.mean()
-    if not np.any(flux):
+    x = flux - flux.mean()
+    if not np.any(x):
         return None
-    fps = sr / hop                                  # envelope frame rate
-    ac = np.correlate(flux, flux, mode="full")[len(flux) - 1:]
+    nfft = 1 << int(np.ceil(np.log2(2 * len(x))))
+    ac = np.fft.irfft(np.abs(np.fft.rfft(x, nfft)) ** 2)[:len(x)]
     lag_min = max(2, int(round(60.0 * fps / 200.0)))     # 200 BPM
     lag_max = min(int(round(60.0 * fps / 60.0)), len(ac) - 2)  # 60 BPM
     if lag_max <= lag_min + 2:
         return None
-    lag = lag_min + int(np.argmax(ac[lag_min:lag_max + 1]))
+    # Tempo prior: the raw autocorrelation of a drum pattern peaks at
+    # every metrical level (half beat, beat, bar) and the longer lags
+    # often win, which is how a 100 BPM loop used to read as 66.7. A
+    # log-Gaussian weighting centred on 120 BPM picks the perceptually
+    # dominant level instead (Ellis 2007, "Beat Tracking by Dynamic
+    # Programming").
+    lags = np.arange(lag_min, lag_max + 1)
+    prior = np.exp(-0.5 * (np.log2((60.0 * fps / lags) / _TEMPO_PRIOR_BPM)
+                           / _TEMPO_PRIOR_OCT) ** 2)
+    lag = lag_min + int(np.argmax(ac[lag_min:lag_max + 1] * prior))
     a, b, c = ac[lag - 1], ac[lag], ac[lag + 1]     # parabolic refinement
     denom = a - 2.0 * b + c
     delta = 0.5 * (a - c) / denom if denom != 0.0 else 0.0
-    bpm = 60.0 * fps / (lag + float(np.clip(delta, -0.5, 0.5)))
-    if bpm < 70.0:                                  # prefer the double tempo
-        half_lag = int(round(lag / 2))
-        if half_lag > lag_min and ac[half_lag] >= 0.7 * b:
-            bpm *= 2.0
-    return round(float(bpm), 1)
+    period = lag + float(np.clip(delta, -0.5, 0.5))
+    bpm = 60.0 * fps / period
+    return float(bpm), float(period)
+
+
+def detect_bpm(mono: np.ndarray, sr: int) -> float | None:
+    """Tempo estimate in BPM (scalar convenience wrapper)."""
+    hop = _ONSET_HOP
+    res = _bpm_from_flux(_onset_envelope(mono, sr, hop=hop), sr / hop)
+    return round(res[0], 1) if res else None
+
+
+def detect_beats(mono: np.ndarray,
+                 sr: int) -> tuple[float, np.ndarray] | None:
+    """
+    Beat grid for the whole signal: (bpm, beat times in seconds).
+
+    Global tempo comes from the autocorrelation of the spectral-flux
+    envelope; the beat PHASE is chosen by comb alignment over the WHOLE
+    envelope; each subsequent beat is predicted one period ahead and then
+    snapped onto the strongest nearby flux peak (sub-frame accurate),
+    which is what makes the click sit on the kick and still follow gentle
+    tempo drift. Percussive input gives the most reliable grid (Gkiokas
+    et al. 2012); the caller should prefer a drums stem when one is
+    audible, and otherwise keep vocals out of the source signal (Zapata &
+    Gómez 2013).
+    """
+    hop = _ONSET_HOP
+    fps = sr / hop
+    flux = _onset_envelope(mono, sr, hop=hop)
+    res = _bpm_from_flux(flux, fps)
+    if res is None:
+        return None
+    bpm, period = res                    # period in envelope frames
+    if period < 4.0:
+        return None
+    # phase: comb over the ENTIRE envelope (an earlier version only used
+    # the first 16 beats, so a quiet or rubato intro skewed the whole grid)
+    best_o = _comb_phase(flux, period)
+    half = max(1, int(round(0.12 * period)))
+    pos_flux = flux[flux > 0]
+    med = float(np.median(pos_flux)) if len(pos_flux) else 0.0
+
+    # Note on the metrical level: with hats on the eighths, both the beat
+    # and the eighth are valid pulses, and the tempo prior settles near
+    # 120 BPM. Measured strength of the two levels does not separate a
+    # right from a wrong choice (ratios overlap), so no heuristic guesses
+    # here — the UI offers a ÷2 / ×2 switch and the musician decides.
+
+    # predictive walk, snapping onto the onset peak within ±12% of the
+    # period (a narrow window: it can only lock onto the beat's own
+    # transient, not onto a syncopation)
+    beats: list[float] = []
+    t = float(best_o)
+    while t < len(flux):
+        c = int(round(t))
+        lo, hi = max(0, c - half), min(len(flux), c + half + 1)
+        if hi > lo:
+            pk = lo + int(np.argmax(flux[lo:hi]))
+            if flux[pk] > 1.5 * med:     # only snap to a real onset
+                t = _parabolic_peak(flux, pk)
+        beats.append(t)
+        t += period
+    if len(beats) < 2:
+        return None
+    # frame -> time: frame k spans [k*hop, k*hop + n_fft), and the flux
+    # of a transient peaks on the frame that already contains it, so the
+    # onset sits _ONSET_LAG_FRAMES frames before the frame index. The
+    # constant is measured against synthetic clicks (see the beat tests).
+    times = ((np.asarray(beats, dtype=np.float64) - _ONSET_LAG_FRAMES)
+             * hop / sr)
+    return round(float(bpm), 1), np.maximum(times, 0.0)
+
+
+def _comb_phase(flux: np.ndarray, period: float) -> int:
+    """Beat offset (in frames) whose comb collects the most onset energy."""
+    best_o, best_s = 0, -1.0
+    for o in range(max(1, int(round(period)))):
+        idx = np.round(np.arange(o, len(flux) - 0.5, period)).astype(int)
+        s = float(flux[idx].sum())
+        if s > best_s:
+            best_s, best_o = s, o
+    return best_o
+
+
+def _parabolic_peak(y: np.ndarray, i: int) -> float:
+    """Sub-sample peak position around index i by parabolic fit."""
+    if i <= 0 or i >= len(y) - 1:
+        return float(i)
+    a, b, c = float(y[i - 1]), float(y[i]), float(y[i + 1])
+    den = a - 2.0 * b + c
+    if den == 0.0:
+        return float(i)
+    return i + float(np.clip(0.5 * (a - c) / den, -0.5, 0.5))
+
+
+def scale_beat_grid(beats: np.ndarray, mult: float) -> np.ndarray:
+    """
+    Same grid at another metrical level, keeping the phase locked:
+    mult=2 adds the midpoints (eighths), mult=0.5 keeps every other beat.
+    Tempo tracking cannot know which level the musician wants to hear —
+    both are musically valid — so this is a UI control, not a guess.
+    """
+    if beats is None or len(beats) < 2 or mult == 1.0:
+        return beats
+    if mult == 2.0:
+        mid = 0.5 * (beats[:-1] + beats[1:])
+        out = np.empty(len(beats) + len(mid), dtype=beats.dtype)
+        out[0::2], out[1::2] = beats, mid
+        return out
+    if mult == 0.5:
+        return beats[::2]
+    return beats
+
+
+def render_click_track(beat_times: np.ndarray, n_frames: int,
+                       sr: int) -> np.ndarray:
+    """
+    Mono float32 metronome buffer on the tracks' timeline: a short 1 kHz
+    decaying sine burst on every beat (classic click), full-scale 0.9.
+    """
+    click = np.zeros(n_frames, dtype=np.float32)
+    dur = max(8, int(0.030 * sr))
+    t = np.arange(dur, dtype=np.float32) / sr
+    burst = (0.9 * np.sin(2.0 * np.pi * 1000.0 * t)
+             * np.exp(-t / 0.008)).astype(np.float32)
+    for bt in beat_times:
+        i = int(round(bt * sr))
+        if 0 <= i < n_frames:
+            m = min(dur, n_frames - i)
+            click[i:i + m] += burst[:m]
+    np.clip(click, -1.0, 1.0, out=click)
+    return click
+
+
+def _pick_beat_source(audible: list, n_frames: int) -> np.ndarray | None:
+    """
+    Choose what the beat tracker listens to, from the audible stems:
+
+      1. the DRUMS stem, when it is audible and not silent — percussive
+         material carries the pulse (Gkiokas et al. 2012; Chiu 2021);
+      2. otherwise the audible mix WITHOUT the vocals stem — predominant
+         vocals push the onset envelope around and make the tempo read
+         high (Zapata & Gómez 2013), which is exactly what showed up in
+         testing when the voice was up;
+      3. otherwise None, and the caller falls back to the full audible mix.
+
+    Returns a mono, post-fader buffer.
+    """
+    def mono_of(track) -> np.ndarray:
+        return track.data.mean(axis=1) * track.gain
+
+    def loud(x: np.ndarray) -> bool:
+        return float(np.sqrt(np.mean(x * x))) > 1e-4
+
+    for t in audible:
+        if t.name == STEM_LABELS["drums"]:
+            d = mono_of(t)
+            if loud(d):
+                return d
+            break
+
+    rest = [t for t in audible if t.name != STEM_LABELS["vocals"]]
+    if not rest or len(rest) == len(audible):
+        return None                      # nothing to drop: use the mix
+    out = np.zeros(n_frames, dtype=np.float32)
+    for t in rest:
+        out += mono_of(t)
+    return out if loud(out) else None
 
 
 def detect_key(mono: np.ndarray, sr: int) -> str | None:
     """
     Musical key estimate ("A minor", "F# major", ...) by correlating the
-    average chromagram with the 24 Krumhansl-Kessler key profiles.
+    WHOLE-signal average chromagram with the 24 Krumhansl-Kessler key
+    profiles. Full-track accumulation (in ~60 s STFT chunks, memory-flat)
+    follows the industry convention — KeyFinder, Essentia and madmom all
+    report one global key computed over the entire track.
     """
-    mag, freqs = _stft_mag(mono, sr, n_fft=4096, hop=2048)
-    if len(mag) == 0:
-        return None
+    n_fft, hop = 4096, 2048
+    freqs = np.fft.rfftfreq(n_fft, 1.0 / sr)
     band = (freqs >= 55.0) & (freqs <= 2000.0)
     pcs = np.round(69.0 + 12.0 * np.log2(freqs[band] / 440.0)).astype(int) % 12
-    energy = (mag[:, band] ** 2).mean(axis=0).astype(np.float64)
-    chroma = np.bincount(pcs, weights=energy, minlength=12)
+    chroma = np.zeros(12, dtype=np.float64)
+    step = max(hop, (int(60.0 * sr) // hop) * hop)
+    for start in range(0, max(1, len(mono) - n_fft + 1), step):
+        seg = mono[start:start + step + n_fft - hop]
+        mag, _ = _stft_mag(seg, sr, n_fft=n_fft, hop=hop)
+        if len(mag) == 0:
+            break
+        energy = (mag[:, band] ** 2).sum(axis=0).astype(np.float64)
+        chroma += np.bincount(pcs, weights=energy, minlength=12)
     if chroma.sum() <= 0.0 or np.ptp(chroma) == 0.0:
         return None
     best_r, best_name = -2.0, None
@@ -1041,11 +1399,13 @@ class VUMeter(tk.Canvas):
     SEGMENTS = 18
     RELEASE_DB_PER_TICK = 3.0     # ~45 dB/s fall time at the UI poll rate
 
-    def __init__(self, master, width: int = 150, height: int = 12):
+    def __init__(self, master, width: int = 150, height: int = 12,
+                 orient: str = "h"):
         super().__init__(master, width=width, height=height,
                          bg=COL_TROUGH, highlightthickness=1,
                          highlightbackground=COL_BORDER)
         self._meter_w, self._meter_h = width, height
+        self._orient = orient          # "h": left→right, "v": bottom→top
         self._disp_db = METER_FLOOR_DB
         self._drawn = -1                     # lit-segment count on canvas
         self._draw(0)
@@ -1064,6 +1424,16 @@ class VUMeter(tk.Canvas):
         self._drawn = lit_count
         self.delete("all")
         gap = 2
+        if self._orient == "v":
+            seg_h = (self._meter_h - gap) / self.SEGMENTS
+            for i in range(self.SEGMENTS):
+                # bottom = floor, top = 0 dBFS
+                seg_db = METER_FLOOR_DB * (1.0 - (i + 1) / self.SEGMENTS)
+                y1 = self._meter_h - 2 - i * seg_h
+                self.create_rectangle(
+                    2, y1 - seg_h + gap, self._meter_w, y1,
+                    fill=self._seg_color(seg_db, i < lit_count), width=0)
+            return
         seg_w = (self._meter_w - gap) / self.SEGMENTS
         for i in range(self.SEGMENTS):
             # dB value this segment represents (left = floor, right = 0 dBFS)
@@ -1072,6 +1442,15 @@ class VUMeter(tk.Canvas):
             self.create_rectangle(
                 x0, 2, x0 + seg_w - gap, self._meter_h,
                 fill=self._seg_color(seg_db, i < lit_count), width=0)
+
+    def set_height(self, height: int) -> None:
+        """Resize a vertical meter to follow its fader, and redraw."""
+        if height == self._meter_h:
+            return
+        self._meter_h = height
+        self.configure(height=height)
+        self._drawn = -1
+        self._draw(0)
 
     def set_level(self, linear_peak: float) -> None:
         db = (20.0 * np.log10(linear_peak)
@@ -1096,7 +1475,7 @@ class TrackRow(ctk.CTkFrame):
             self, text=track.name, width=110, anchor="w",
             text_color=COL_TEXT,
             font=ctk.CTkFont(family=UI_FAMILY, size=14, weight="bold"))
-        self.name_label.grid(row=0, column=0, padx=(22, 8), pady=13,
+        self.name_label.grid(row=0, column=0, padx=(22, 8), pady=5,
                              sticky="w")
 
         self.meter = VUMeter(self)
@@ -1109,7 +1488,7 @@ class TrackRow(ctk.CTkFrame):
             corner_radius=3, height=16,
             command=self._on_slider)
         self.slider.set(track.gain * 100.0)
-        self.slider.grid(row=0, column=2, padx=8, pady=13, sticky="ew")
+        self.slider.grid(row=0, column=2, padx=8, pady=5, sticky="ew")
 
         self.value_label = ctk.CTkLabel(
             self, text="100%", width=52, anchor="e",
@@ -1122,38 +1501,43 @@ class TrackRow(ctk.CTkFrame):
             fg_color=BTN_GHOST_BG, text_color=COL_TEXT_2,
             hover_color=BTN_GHOST_HOV, command=self._toggle_mute,
             font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"))
-        self.mute_btn.grid(row=0, column=4, padx=4, pady=13)
+        self.mute_btn.grid(row=0, column=4, padx=4, pady=5)
 
         self.solo_btn = ctk.CTkButton(
             self, text="S", width=28, height=28, corner_radius=14,
             fg_color=BTN_GHOST_BG, text_color=COL_TEXT_2,
             hover_color=BTN_GHOST_HOV, command=self._toggle_solo,
             font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"))
-        self.solo_btn.grid(row=0, column=5, padx=(4, 22), pady=13)
+        self.solo_btn.grid(row=0, column=5, padx=(4, 22), pady=5)
 
         self._refresh_value_label()
+        self._refresh_toggles()   # layout switches rebuild rows: keep M/S state
 
     def _on_slider(self, value: float) -> None:
         self.track.gain = float(value) / 100.0     # linear amplitude map
         self._refresh_value_label()
+        self._on_change()
 
     def _refresh_value_label(self) -> None:
         self.value_label.configure(text=f"{int(round(self.track.gain * 100))}%")
 
-    def _toggle_mute(self) -> None:
-        self.track.mute = not self.track.mute
-        # tema §5: active M = warm-white bg with dark text
+    def _refresh_toggles(self) -> None:
+        # tema §5: active M = warm-white bg, active S = amber, dark text
         self.mute_btn.configure(
             fg_color=BTN_PRI_BG if self.track.mute else BTN_GHOST_BG,
             text_color=BTN_PRI_TX if self.track.mute else COL_TEXT_2)
+        self.solo_btn.configure(
+            fg_color=AMBER if self.track.solo else BTN_GHOST_BG,
+            text_color=BTN_PRI_TX if self.track.solo else COL_TEXT_2)
+
+    def _toggle_mute(self) -> None:
+        self.track.mute = not self.track.mute
+        self._refresh_toggles()
         self._on_change()
 
     def _toggle_solo(self) -> None:
         self.track.solo = not self.track.solo
-        # tema §5: active S = amber bg with dark text
-        self.solo_btn.configure(
-            fg_color=AMBER if self.track.solo else BTN_GHOST_BG,
-            text_color=BTN_PRI_TX if self.track.solo else COL_TEXT_2)
+        self._refresh_toggles()
         self._on_change()
 
 
@@ -1174,7 +1558,7 @@ class MasterRow(ctk.CTkFrame):
             self, text="MASTER", width=110, anchor="w",
             text_color=COL_TEXT,
             font=ctk.CTkFont(family=UI_FAMILY, size=15, weight="bold"))
-        self.name_label.grid(row=0, column=0, padx=(22, 8), pady=13,
+        self.name_label.grid(row=0, column=0, padx=(22, 8), pady=5,
                              sticky="w")
 
         self.meter = VUMeter(self, width=150, height=14)
@@ -1186,14 +1570,282 @@ class MasterRow(ctk.CTkFrame):
             button_color=AMBER, button_hover_color=AMBER_HOVER,
             corner_radius=3, height=16,
             command=self._on_slider)
-        self.slider.set(100.0)
-        self.slider.grid(row=0, column=2, padx=8, pady=13, sticky="ew")
+        self.slider.set(engine.master_gain * 100.0)
+        self.slider.grid(row=0, column=2, padx=8, pady=5, sticky="ew")
 
         self.value_label = ctk.CTkLabel(
-            self, text="100%", width=52, anchor="e",
-            text_color=COL_TEXT,
+            self, text=f"{int(round(engine.master_gain * 100))}%",
+            width=52, anchor="e", text_color=COL_TEXT,
             font=ctk.CTkFont(family=MONO_FAMILY, size=13, weight="bold"))
         self.value_label.grid(row=0, column=3, padx=(0, 22))
+
+    def _on_slider(self, value: float) -> None:
+        self.engine.master_gain = float(value) / 100.0
+        self.value_label.configure(text=f"{int(round(float(value)))}%")
+
+
+# --- vertical console strips (mixer layout "strips", v2.1.1) ---------------
+# Same widgets as the rows above, stacked vertically and placed side by
+# side, so 6 stems + master fit on a 768 px laptop screen with no scrolling.
+
+_STRIP_FADER_H = 128        # default fader travel (resized to fit at runtime)
+_STRIP_W = 104              # channel width (7 strips ≈ 760 px)
+_STRIP_CHROME_H = 128       # name + value + M/S + paddings + scrollbar
+_STRIP_CHROME_MIN = 108     # same, with the % label hidden (short windows)
+_STRIP_COMPACT_AT = 186     # viewport height (logical px) that triggers it
+
+
+def _px(widget, value: float) -> int:
+    """
+    CustomTkinter scales its widgets by the display scaling factor, but a
+    raw tk.Canvas (the VU meter) does not — convert to real pixels so the
+    meter always matches the fader beside it.
+    """
+    try:
+        return int(round(value * ctk.ScalingTracker.get_widget_scaling(widget)))
+    except Exception:
+        return int(value)
+
+
+class TrackStrip(ctk.CTkFrame):
+    """One vertical mixer channel: name, VU + fader, value, Mute, Solo."""
+
+    def __init__(self, master, track: Track, on_change):
+        super().__init__(master, fg_color=COL_ELEV, corner_radius=18)
+        self.track = track
+        self._on_change = on_change
+
+        self.name_label = ctk.CTkLabel(
+            self, text=track.name, width=_STRIP_W - 16, height=18,
+            text_color=COL_TEXT,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"))
+        self.name_label.grid(row=0, column=0, columnspan=2,
+                             padx=8, pady=(8, 4))
+
+        self.meter = VUMeter(self, width=_px(self, 12),
+                             height=_px(self, _STRIP_FADER_H), orient="v")
+        self.meter.grid(row=1, column=0, padx=(14, 4), pady=2)
+
+        self.slider = ctk.CTkSlider(
+            self, from_=0, to=100, number_of_steps=100,
+            orientation="vertical", height=_STRIP_FADER_H, width=16,
+            fg_color=COL_TROUGH, progress_color=COL_TEXT,
+            button_color=COL_TEXT, button_hover_color=BTN_PRI_HOV,
+            corner_radius=3, command=self._on_slider)
+        self.slider.set(track.gain * 100.0)
+        self.slider.grid(row=1, column=1, padx=(4, 14), pady=2)
+
+        self.value_label = ctk.CTkLabel(
+            self, text="100%", height=16, text_color=COL_TEXT_2,
+            font=ctk.CTkFont(family=MONO_FAMILY, size=12))
+        self.value_label.grid(row=2, column=0, columnspan=2, pady=(2, 2))
+
+        btns = ctk.CTkFrame(self, fg_color="transparent")
+        btns.grid(row=3, column=0, columnspan=2, pady=(0, 8))
+        self.mute_btn = ctk.CTkButton(
+            btns, text="M", width=28, height=26, corner_radius=13,
+            fg_color=BTN_GHOST_BG, text_color=COL_TEXT_2,
+            hover_color=BTN_GHOST_HOV, command=self._toggle_mute,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"))
+        self.mute_btn.grid(row=0, column=0, padx=3)
+        self.solo_btn = ctk.CTkButton(
+            btns, text="S", width=28, height=26, corner_radius=13,
+            fg_color=BTN_GHOST_BG, text_color=COL_TEXT_2,
+            hover_color=BTN_GHOST_HOV, command=self._toggle_solo,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"))
+        self.solo_btn.grid(row=0, column=1, padx=3)
+
+        self._refresh_value_label()
+        self._refresh_toggles()
+
+    def set_fader_height(self, h: int, compact: bool = False) -> None:
+        """Fit the fader (and its meter) to the mixer viewport; in a very
+        short window drop the % readout so M / S stay reachable."""
+        self.slider.configure(height=h)
+        self.meter.set_height(_px(self, h))
+        if compact:
+            self.value_label.grid_remove()
+        else:
+            self.value_label.grid()
+
+    # the four methods below mirror TrackRow's, on the same Track object
+    def _on_slider(self, value: float) -> None:
+        self.track.gain = float(value) / 100.0
+        self._refresh_value_label()
+        self._on_change()
+
+    def _refresh_value_label(self) -> None:
+        self.value_label.configure(text=f"{int(round(self.track.gain * 100))}%")
+
+    def _refresh_toggles(self) -> None:
+        self.mute_btn.configure(
+            fg_color=BTN_PRI_BG if self.track.mute else BTN_GHOST_BG,
+            text_color=BTN_PRI_TX if self.track.mute else COL_TEXT_2)
+        self.solo_btn.configure(
+            fg_color=AMBER if self.track.solo else BTN_GHOST_BG,
+            text_color=BTN_PRI_TX if self.track.solo else COL_TEXT_2)
+
+    def _toggle_mute(self) -> None:
+        self.track.mute = not self.track.mute
+        self._refresh_toggles()
+        self._on_change()
+
+    def _toggle_solo(self) -> None:
+        self.track.solo = not self.track.solo
+        self._refresh_toggles()
+        self._on_change()
+
+
+CONTACT_EMAIL = "mscanabarro@gmail.com"
+
+
+class ContactDialog(ctk.CTkToplevel):
+    """
+    The "?" dialog: who made this and how to reach them, plus the exact
+    version. The app circulates hand to hand, so every copy has to carry
+    a way back to its author and say which build it is.
+    """
+
+    def __init__(self, master):
+        super().__init__(master, fg_color=COL_BG)
+        self.title(L("contact_title"))
+        self.resizable(False, False)
+        self.transient(master)
+        try:
+            base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+            if (base / "isolate.ico").exists():
+                self.after(200, lambda: self.iconbitmap(
+                    str(base / "isolate.ico")))
+        except Exception:
+            pass
+
+        card = ctk.CTkFrame(self, corner_radius=22, fg_color=COL_PANEL,
+                            border_width=1, border_color=COL_BORDER)
+        card.pack(fill="both", expand=True, padx=14, pady=14)
+
+        ctk.CTkLabel(card, text="Isolate", text_color=COL_TEXT,
+                     font=ctk.CTkFont(family=UI_FAMILY, size=22,
+                                      weight="bold")
+                     ).grid(row=0, column=0, padx=26, pady=(20, 0),
+                            sticky="w")
+        ctk.CTkLabel(card, text=L("contact_version", v=APP_VERSION),
+                     text_color=AMBER,
+                     font=ctk.CTkFont(family=MONO_FAMILY, size=13,
+                                      weight="bold")
+                     ).grid(row=1, column=0, padx=26, pady=(0, 14),
+                            sticky="w")
+
+        ctk.CTkLabel(card, text=L("contact_head"), text_color=COL_TEXT,
+                     font=ctk.CTkFont(family=UI_FAMILY, size=14,
+                                      weight="bold")
+                     ).grid(row=2, column=0, padx=26, sticky="w")
+        ctk.CTkLabel(card, text=L("contact_body"), text_color=COL_TEXT_2,
+                     justify="left", wraplength=330,
+                     font=ctk.CTkFont(family=UI_FAMILY, size=12)
+                     ).grid(row=3, column=0, padx=26, pady=(4, 12),
+                            sticky="w")
+
+        mail_chip = ctk.CTkFrame(card, fg_color=CHIP_BG, corner_radius=999,
+                                 border_width=1, border_color=CHIP_BORDER)
+        mail_chip.grid(row=4, column=0, padx=26, sticky="w")
+        ctk.CTkLabel(mail_chip, text=CONTACT_EMAIL, text_color=AMBER,
+                     font=ctk.CTkFont(family=MONO_FAMILY, size=13)
+                     ).grid(row=0, column=0, padx=18, pady=7)
+
+        self.note = ctk.CTkLabel(card, text="", text_color=OK_GREEN,
+                                 font=ctk.CTkFont(family=UI_FAMILY, size=11))
+        self.note.grid(row=5, column=0, padx=26, pady=(6, 0), sticky="w")
+
+        btns = ctk.CTkFrame(card, fg_color="transparent")
+        btns.grid(row=6, column=0, padx=26, pady=(10, 20), sticky="e")
+        ctk.CTkButton(btns, text=L("contact_write"), width=130, height=32,
+                      corner_radius=999, fg_color=BTN_PRI_BG,
+                      text_color=BTN_PRI_TX, hover_color=BTN_PRI_HOV,
+                      font=ctk.CTkFont(family=UI_FAMILY, size=12,
+                                       weight="bold"),
+                      command=self._write).grid(row=0, column=0, padx=(0, 8))
+        ctk.CTkButton(btns, text=L("contact_copy"), width=120, height=32,
+                      corner_radius=999, fg_color=BTN_GHOST_BG,
+                      text_color=COL_TEXT, border_width=1,
+                      border_color=BTN_GHOST_BRD,
+                      hover_color=BTN_GHOST_HOV,
+                      font=ctk.CTkFont(family=UI_FAMILY, size=12),
+                      command=self._copy).grid(row=0, column=1, padx=(0, 8))
+        ctk.CTkButton(btns, text=L("contact_close"), width=90, height=32,
+                      corner_radius=999, fg_color=BTN_GHOST_BG,
+                      text_color=COL_TEXT_2, border_width=1,
+                      border_color=BTN_GHOST_BRD,
+                      hover_color=BTN_GHOST_HOV,
+                      font=ctk.CTkFont(family=UI_FAMILY, size=12),
+                      command=self.destroy).grid(row=0, column=2)
+
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.update_idletasks()
+        # centred on the main window
+        x = master.winfo_rootx() + (master.winfo_width()
+                                    - self.winfo_width()) // 2
+        y = master.winfo_rooty() + (master.winfo_height()
+                                    - self.winfo_height()) // 3
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        self.after(120, self.grab_set)          # modal once it is mapped
+
+    def _write(self) -> None:
+        import webbrowser
+        webbrowser.open(f"mailto:{CONTACT_EMAIL}"
+                        f"?subject=Isolate%20v{APP_VERSION}")
+
+    def _copy(self) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(CONTACT_EMAIL)
+        self.note.configure(text=L("contact_copied"))
+
+
+class MasterStrip(ctk.CTkFrame):
+    """Vertical master bus strip — amber, always the leftmost channel."""
+
+    def __init__(self, master, engine: AudioEngine):
+        super().__init__(master, fg_color=COL_ELEV, corner_radius=18,
+                         border_width=1, border_color=MASTER_BORDER)
+        self.engine = engine
+
+        self.name_label = ctk.CTkLabel(
+            self, text="MASTER", width=_STRIP_W - 16, height=18,
+            text_color=AMBER,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"))
+        self.name_label.grid(row=0, column=0, columnspan=2,
+                             padx=8, pady=(8, 4))
+
+        self.meter = VUMeter(self, width=_px(self, 12),
+                             height=_px(self, _STRIP_FADER_H), orient="v")
+        self.meter.grid(row=1, column=0, padx=(14, 4), pady=2)
+
+        self.slider = ctk.CTkSlider(
+            self, from_=0, to=100, number_of_steps=100,
+            orientation="vertical", height=_STRIP_FADER_H, width=16,
+            fg_color=COL_TROUGH, progress_color=AMBER,
+            button_color=AMBER, button_hover_color=AMBER_HOVER,
+            corner_radius=3, command=self._on_slider)
+        self.slider.set(engine.master_gain * 100.0)
+        self.slider.grid(row=1, column=1, padx=(4, 14), pady=2)
+
+        self.value_label = ctk.CTkLabel(
+            self, text=f"{int(round(engine.master_gain * 100))}%",
+            height=16, text_color=COL_TEXT,
+            font=ctk.CTkFont(family=MONO_FAMILY, size=12, weight="bold"))
+        self.value_label.grid(row=2, column=0, columnspan=2, pady=(2, 2))
+
+        # keeps the master aligned with the stems' M/S button row
+        ctk.CTkFrame(self, fg_color="transparent", height=26,
+                     width=10).grid(row=3, column=0, columnspan=2,
+                                    pady=(0, 8))
+
+    def set_fader_height(self, h: int, compact: bool = False) -> None:
+        self.slider.configure(height=h)
+        self.meter.set_height(_px(self, h))
+        if compact:
+            self.value_label.grid_remove()
+        else:
+            self.value_label.grid()
 
     def _on_slider(self, value: float) -> None:
         self.engine.master_gain = float(value) / 100.0
@@ -1233,7 +1885,8 @@ class IsolateApp(_Root):
         except Exception:
             pass
 
-        self.title("Isolate — Stem Splitter & Multi-Track Mixer")
+        self.title(f"Isolate v{APP_VERSION} — Stem Splitter & "
+                   "Multi-Track Mixer")
         self.geometry("980x720")
         self.minsize(860, 600)
         self.configure(fg_color=COL_BG)
@@ -1254,8 +1907,18 @@ class IsolateApp(_Root):
         self._busy = False
         self._seeking = False
         self._analyzing = False
+        self._analysis_dirty = False
+        self._analysis_dirty_key = False
+        self._key_last: str | None = None
+        self._bpm_global: float | None = None
+        self._bpm_live_txt: str | None = None
+        self._mix_change_job: str | None = None
         self._status_queue: queue.Queue[str] = queue.Queue()
-        self.track_rows: list[TrackRow] = []
+        self.track_rows: list[TrackRow | TrackStrip] = []
+        self._strip_fader_h = _STRIP_FADER_H
+        self._strip_compact = False
+        self._beats_base: np.ndarray | None = None   # detected grid, 1x
+        self._metro_mult = 1.0                       # ÷2 / 1x / ×2
 
         self._build_ui()
         self._populate_devices()
@@ -1270,12 +1933,12 @@ class IsolateApp(_Root):
 
     def _build_ui(self) -> None:
         self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(2, weight=1)      # the mixer takes the slack
 
         # ---------- Top bar ----------
         top = ctk.CTkFrame(self, corner_radius=22, fg_color=COL_PANEL,
                            border_width=1, border_color=COL_BORDER)
-        top.grid(row=0, column=0, sticky="ew", padx=12, pady=(12, 6))
+        top.grid(row=0, column=0, sticky="ew", padx=12, pady=(10, 4))
         top.grid_columnconfigure(0, weight=1)
         top.grid_columnconfigure(1, weight=1)
 
@@ -1287,7 +1950,7 @@ class IsolateApp(_Root):
         self.drop_zone.grid(row=0, column=0, sticky="ew",
                             padx=(10, 6), pady=10)
         self.drop_label = ctk.CTkLabel(
-            self.drop_zone, text=drop_text, height=64,
+            self.drop_zone, text=drop_text, height=40,
             text_color=COL_TEXT_DIM,
             font=ctk.CTkFont(family=UI_FAMILY, size=13))
         self.drop_label.pack(fill="both", expand=True, padx=6, pady=2)
@@ -1380,113 +2043,169 @@ class IsolateApp(_Root):
                                       command=self._on_timeline_drag)
         self.timeline.set(0.0)
         self.timeline.grid(row=2, column=0, columnspan=2, sticky="ew",
-                           padx=10, pady=(0, 12))
+                           padx=10, pady=(0, 8))
         self.timeline.bind("<Button-1>", self._on_timeline_press)
         self.timeline.bind("<ButtonRelease-1>", self._on_timeline_release)
 
         # ---------- Configuration panel ----------
         cfg = ctk.CTkFrame(self, corner_radius=22, fg_color=COL_PANEL,
                            border_width=1, border_color=COL_BORDER)
-        cfg.grid(row=1, column=0, sticky="ew", padx=12, pady=6)
-        cfg.grid_columnconfigure(3, weight=1)
+        cfg.grid(row=1, column=0, sticky="ew", padx=12, pady=4)
+        cfg.grid_columnconfigure(2, weight=1)
 
         ctk.CTkLabel(cfg, text=L("lbl_sep_mode"),
                      text_color=COL_TEXT_2,
                      font=ctk.CTkFont(family=UI_FAMILY, size=12,
                                       weight="bold")
-                     ).grid(row=0, column=0, rowspan=len(STEM_MODELS),
-                            padx=(24, 18), pady=10, sticky="w")
+                     ).grid(row=0, column=0, rowspan=2,
+                            padx=(24, 18), pady=8, sticky="w")
 
-        self.stem_var = ctk.StringVar(value=L("stems4"))
-        for i, label in enumerate(STEM_MODELS):
-            ctk.CTkRadioButton(cfg, text=label, value=label,
-                               variable=self.stem_var,
-                               fg_color=COL_TEXT, hover_color=COL_TEXT,
-                               border_color=RADIO_RING,
-                               text_color=COL_TEXT,
-                               font=ctk.CTkFont(family=UI_FAMILY, size=13)
-                               ).grid(row=i, column=1, sticky="w",
-                                      padx=4, pady=3)
+        # one pill row + a caption with the stems of the selected mode
+        # (was a 4-row radio stack: ~110 px of the mixer's height)
+        self.stem_var = ctk.StringVar(value=L("stems4_short"))
+        self.stem_picker = ctk.CTkSegmentedButton(
+            cfg, values=STEM_SHORT, variable=self.stem_var,
+            corner_radius=999, fg_color=COL_TROUGH,
+            selected_color=BTN_GHOST_BG, selected_hover_color=BTN_GHOST_HOV,
+            unselected_color=COL_TROUGH, unselected_hover_color="#1a1a1e",
+            text_color=COL_TEXT,
+            font=ctk.CTkFont(family=UI_FAMILY, size=13, weight="bold"),
+            command=self._on_stem_mode)
+        self.stem_picker.grid(row=0, column=1, columnspan=2, sticky="w",
+                              padx=(0, 16), pady=(9, 0))
+
+        self.stem_desc = ctk.CTkLabel(
+            cfg, text=STEM_DESC[self.stem_var.get()], anchor="w",
+            text_color=COL_TEXT_DIM,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12))
+        self.stem_desc.grid(row=1, column=1, columnspan=2, sticky="w",
+                            padx=(2, 16), pady=(1, 8))
 
         self.separate_btn = ctk.CTkButton(
-            cfg, text=L("btn_separate"), height=48, width=190,
+            cfg, text=L("btn_separate"), height=42, width=190,
             corner_radius=999, fg_color=BTN_PRI_BG, text_color=BTN_PRI_TX,
             hover_color=BTN_PRI_HOV,
             font=ctk.CTkFont(family=UI_FAMILY, size=15, weight="bold"),
             command=self._on_separate)
-        self.separate_btn.grid(row=0, column=3, rowspan=len(STEM_MODELS),
-                               padx=24, pady=10, sticky="e")
+        self.separate_btn.grid(row=0, column=3, rowspan=2,
+                               padx=24, pady=8, sticky="e")
 
-        # ---------- Musical analysis panel ----------
-        ana = ctk.CTkFrame(self, corner_radius=22, fg_color=COL_PANEL,
-                           border_width=1, border_color=CHIP_BORDER)
-        ana.grid(row=2, column=0, sticky="ew", padx=12, pady=6)
-        ana.grid_columnconfigure(3, weight=1)
+        # ---------- Mixer (with the musical analysis in its header) ----------
+        mix_wrap = ctk.CTkFrame(self, corner_radius=22, fg_color=COL_PANEL,
+                                border_width=1, border_color=COL_BORDER)
+        mix_wrap.grid(row=2, column=0, sticky="nsew", padx=12, pady=4)
+        mix_wrap.grid_columnconfigure(0, weight=1)
+        mix_wrap.grid_rowconfigure(1, weight=1)
 
-        ctk.CTkLabel(ana, text=L("lbl_analysis"),
-                     text_color=COL_TEXT_2,
+        # v2.1.2: the analysis used to be a panel of its own. On a 768 px
+        # laptop that row alone cost the mixer a whole channel, and the
+        # analysis belongs next to the mixer anyway (the BPM follows the
+        # audible mix and the click plays with it), so it now lives in the
+        # mixer's header line.
+        head = ctk.CTkFrame(mix_wrap, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=14, pady=(6, 0))
+        head.grid_columnconfigure(4, weight=1)
+        ctk.CTkLabel(head, text=L("mixer_title"), text_color=COL_TEXT_2,
                      font=ctk.CTkFont(family=UI_FAMILY, size=12,
                                       weight="bold")
-                     ).grid(row=0, column=0, padx=(24, 16), pady=8)
+                     ).grid(row=0, column=0, sticky="w", padx=(2, 14))
 
-        # tema §5: two chips (Tom | BPM) — small amber caption, big value
-        key_chip = ctk.CTkFrame(ana, fg_color=CHIP_BG, corner_radius=18,
+        # tema §5: two chips (Tom | BPM), caption and value on one line
+        key_chip = ctk.CTkFrame(head, fg_color=CHIP_BG, corner_radius=999,
                                 border_width=1, border_color=CHIP_BORDER)
-        key_chip.grid(row=0, column=1, padx=(0, 12), pady=8)
+        key_chip.grid(row=0, column=1, padx=(0, 8), pady=4)
         ctk.CTkLabel(key_chip, text=L("chip_key"), text_color=CHIP_BORDER,
                      font=ctk.CTkFont(family=UI_FAMILY, size=10,
                                       weight="bold")
-                     ).grid(row=0, column=0, padx=(16, 16), pady=(5, 0))
+                     ).grid(row=0, column=0, padx=(14, 6), pady=5)
         self.key_label = ctk.CTkLabel(
-            key_chip, text="—", width=64, text_color=AMBER_DIM,
-            font=ctk.CTkFont(family=UI_FAMILY, size=21, weight="bold"))
-        self.key_label.grid(row=1, column=0, padx=(16, 16), pady=(0, 6))
+            key_chip, text="—", width=48, anchor="w", text_color=AMBER_DIM,
+            font=ctk.CTkFont(family=UI_FAMILY, size=17, weight="bold"))
+        self.key_label.grid(row=0, column=1, padx=(0, 14), pady=5)
 
-        bpm_chip = ctk.CTkFrame(ana, fg_color=CHIP_BG, corner_radius=18,
+        bpm_chip = ctk.CTkFrame(head, fg_color=CHIP_BG, corner_radius=999,
                                 border_width=1, border_color=CHIP_BORDER)
-        bpm_chip.grid(row=0, column=2, padx=(0, 20), pady=8)
+        bpm_chip.grid(row=0, column=2, padx=(0, 12), pady=4)
         ctk.CTkLabel(bpm_chip, text="BPM", text_color=CHIP_BORDER,
                      font=ctk.CTkFont(family=UI_FAMILY, size=10,
                                       weight="bold")
-                     ).grid(row=0, column=0, padx=(16, 16), pady=(5, 0))
+                     ).grid(row=0, column=0, padx=(14, 6), pady=5)
         self.bpm_label = ctk.CTkLabel(
-            bpm_chip, text="—", width=64, text_color=AMBER_DIM,
-            font=ctk.CTkFont(family=MONO_FAMILY, size=21, weight="bold"))
-        self.bpm_label.grid(row=1, column=0, padx=(16, 16), pady=(0, 6))
+            bpm_chip, text="—", width=48, anchor="w", text_color=AMBER_DIM,
+            font=ctk.CTkFont(family=MONO_FAMILY, size=17, weight="bold"))
+        self.bpm_label.grid(row=0, column=1, padx=(0, 14), pady=5)
+
+        # metronome: the audible form of the BPM chip — not a stem, so it
+        # stays out of the channel list; the click is injected post-master
+        # in the engine, with its own volume
+        metro = ctk.CTkFrame(head, fg_color="transparent")
+        metro.grid(row=0, column=3, padx=(0, 12), pady=4, sticky="w")
+        self.metro_btn = ctk.CTkButton(
+            metro, text="⏱  " + L("metro_label"), width=132, height=30,
+            corner_radius=999, fg_color=BTN_GHOST_BG, text_color=COL_TEXT_2,
+            border_width=1, border_color=CHIP_BORDER,
+            hover_color=BTN_GHOST_HOV,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"),
+            command=self._on_metronome)
+        self.metro_btn.grid(row=0, column=0, padx=(0, 8))
+        self.metro_slider = ctk.CTkSlider(
+            metro, from_=0, to=100, number_of_steps=100, width=76,
+            fg_color=COL_TROUGH, progress_color=AMBER,
+            button_color=AMBER, button_hover_color=AMBER_HOVER,
+            corner_radius=3, height=14,
+            command=self._on_metro_gain)
+        self.metro_slider.set(80.0)
+        self.metro_slider.grid(row=0, column=1, padx=(0, 8))
+
+        # metrical level: both the beat and its eighths are valid pulses
+        # (see detect_beats), so the musician picks — the phase stays
+        # locked to the detected grid either way
+        self.metro_mult_btn = ctk.CTkSegmentedButton(
+            metro, values=["÷2", "1×", "×2"], width=104,
+            corner_radius=999, fg_color=COL_TROUGH,
+            selected_color=BTN_GHOST_BG, selected_hover_color=BTN_GHOST_HOV,
+            unselected_color=COL_TROUGH, unselected_hover_color="#1a1a1e",
+            text_color=COL_TEXT,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"),
+            command=self._on_metro_mult)
+        self.metro_mult_btn.set("1×")
+        self.metro_mult_btn.grid(row=0, column=2)
 
         self.analyze_btn = ctk.CTkButton(
-            ana, text=L("btn_analyze"), width=160, height=32,
+            head, text=L("btn_analyze"), width=156, height=30,
             corner_radius=999, fg_color=BTN_GHOST_BG, text_color=COL_TEXT,
             border_width=1, border_color=BTN_GHOST_BRD,
             hover_color=BTN_GHOST_HOV,
-            font=ctk.CTkFont(family=UI_FAMILY, size=13, weight="bold"),
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"),
             command=self._on_analyze)
-        self.analyze_btn.grid(row=0, column=4, padx=24, pady=8, sticky="e")
+        self.analyze_btn.grid(row=0, column=5, padx=(8, 10), pady=4,
+                              sticky="e")
 
-        # ---------- Mixer ----------
-        self.mixer = ctk.CTkScrollableFrame(
-            self, corner_radius=22, fg_color=COL_PANEL,
-            label_text="M I X E R", label_fg_color="transparent",
-            label_text_color=COL_TEXT_2,
-            label_font=ctk.CTkFont(family=UI_FAMILY, size=12,
-                                   weight="bold"))
-        self.mixer.grid(row=3, column=0, sticky="nsew", padx=12, pady=6)
-        self.mixer.grid_columnconfigure(0, weight=1)
+        # layout switch: classic rows vs. vertical console strips
+        self.layout_toggle = ctk.CTkSegmentedButton(
+            head, values=[L("layout_rows"), L("layout_strips")], width=160,
+            corner_radius=999, fg_color=COL_TROUGH,
+            selected_color=BTN_GHOST_BG, selected_hover_color=BTN_GHOST_HOV,
+            unselected_color=COL_TROUGH, unselected_hover_color="#1a1a1e",
+            text_color=COL_TEXT,
+            font=ctk.CTkFont(family=UI_FAMILY, size=11, weight="bold"),
+            command=self._on_layout)
+        self.layout_toggle.set(L("layout_strips") if MIXER_LAYOUT == "strips"
+                               else L("layout_rows"))
+        self.layout_toggle.grid(row=0, column=6, sticky="e")
 
-        self.master_row = MasterRow(self.mixer, self.engine)
-        self.master_row.grid(row=0, column=0, sticky="ew", padx=6,
-                             pady=(4, 10))
-
-        self.mixer_hint = ctk.CTkLabel(
-            self.mixer, text=L("mixer_hint"),
-            text_color=COL_TEXT_DIM,
-            font=ctk.CTkFont(family=UI_FAMILY, size=13))
-        self.mixer_hint.grid(row=1, column=0, pady=30)
+        self.mixer_host = ctk.CTkFrame(mix_wrap, fg_color="transparent")
+        self.mixer_host.grid(row=1, column=0, sticky="nsew",
+                             padx=6, pady=(2, 6))
+        self.mixer_host.grid_columnconfigure(0, weight=1)
+        self.mixer_host.grid_rowconfigure(0, weight=1)
+        self.mixer_host.bind("<Configure>", self._fit_strips)
+        self._build_mixer_body()
 
         # ---------- Bottom bar ----------
         bottom = ctk.CTkFrame(self, corner_radius=22, fg_color=COL_PANEL,
                               border_width=1, border_color=COL_BORDER)
-        bottom.grid(row=4, column=0, sticky="ew", padx=12, pady=(6, 12))
+        bottom.grid(row=3, column=0, sticky="ew", padx=12, pady=(4, 8))
         bottom.grid_columnconfigure(2, weight=1)
 
         self.export_btn = ctk.CTkButton(
@@ -1523,7 +2242,23 @@ class IsolateApp(_Root):
             font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"),
             command=self._on_language)
         self.lang_toggle.set(LANG.upper())
-        self.lang_toggle.grid(row=0, column=3, padx=(0, 18), pady=10)
+        self.lang_toggle.grid(row=0, column=3, padx=(0, 10), pady=10)
+
+        # version + "?" contact: copies of the app travel hand to hand,
+        # so each one shows which build it is and how to reach the author
+        ctk.CTkLabel(
+            bottom, text=f"v{APP_VERSION}", text_color=COL_TEXT_DIM,
+            font=ctk.CTkFont(family=MONO_FAMILY, size=11)
+        ).grid(row=0, column=4, padx=(0, 6), pady=10)
+
+        self.help_btn = ctk.CTkButton(
+            bottom, text="?", width=30, height=30, corner_radius=15,
+            fg_color=BTN_GHOST_BG, text_color=COL_TEXT,
+            border_width=1, border_color=BTN_GHOST_BRD,
+            hover_color=BTN_GHOST_HOV,
+            font=ctk.CTkFont(family=UI_FAMILY, size=14, weight="bold"),
+            command=self._on_contact)
+        self.help_btn.grid(row=0, column=5, padx=(0, 14), pady=10)
 
         # tema §5: mandatory educational note — own row so it never
         # collides with the status text; everything else stays put
@@ -1532,7 +2267,116 @@ class IsolateApp(_Root):
             text=L("footer"),
             text_color=COL_TEXT_DIM,
             font=ctk.CTkFont(family=UI_FAMILY, size=12)
-        ).grid(row=1, column=0, columnspan=4, pady=(0, 8))
+        ).grid(row=1, column=0, columnspan=6, pady=(0, 8))
+
+    # --------------------------------------------------------- mixer layout --
+
+    def _build_mixer_body(self) -> None:
+        """
+        (Re)create the mixer surface for the active layout. Called once at
+        startup and again whenever the user flips the layout switch; all
+        state lives in the Track objects, so rebuilding is lossless.
+        """
+        for child in self.mixer_host.winfo_children():
+            child.destroy()
+        strips = MIXER_LAYOUT == "strips"
+
+        self.mixer = ctk.CTkScrollableFrame(
+            self.mixer_host, corner_radius=16, fg_color="transparent",
+            orientation="horizontal" if strips else "vertical")
+        self.mixer.grid(row=0, column=0, sticky="nsew")
+
+        if strips:
+            self.mixer.grid_rowconfigure(0, weight=1)
+            self.master_row = MasterStrip(self.mixer, self.engine)
+            self.master_row.grid(row=0, column=0, padx=(4, 10), pady=4,
+                                 sticky="ns")
+        else:
+            self.mixer.grid_columnconfigure(0, weight=1)
+            self.master_row = MasterRow(self.mixer, self.engine)
+            self.master_row.grid(row=0, column=0, sticky="ew", padx=6,
+                                 pady=(2, 8))
+
+        self.mixer_hint = ctk.CTkLabel(
+            self.mixer, text=L("mixer_hint"), text_color=COL_TEXT_DIM,
+            font=ctk.CTkFont(family=UI_FAMILY, size=13))
+        self.track_rows = []
+        self._populate_mixer()
+
+    def _populate_mixer(self) -> None:
+        """Rebuild the stem channels below/beside the master strip."""
+        for row in self.track_rows:
+            row.destroy()
+        self.track_rows.clear()
+        strips = MIXER_LAYOUT == "strips"
+
+        if not self.engine.tracks:
+            if strips:
+                self.mixer_hint.grid(row=0, column=1, padx=30, pady=30)
+            else:
+                self.mixer_hint.grid(row=1, column=0, pady=24)
+            return
+        self.mixer_hint.grid_remove()
+
+        for i, track in enumerate(self.engine.tracks):
+            if strips:
+                row = TrackStrip(self.mixer, track,
+                                 on_change=self._on_mix_change)
+                row.grid(row=0, column=i + 1, padx=4, pady=4, sticky="ns")
+            else:
+                row = TrackRow(self.mixer, track,
+                               on_change=self._on_mix_change)
+                row.grid(row=i + 2, column=0, sticky="ew", padx=6, pady=3)
+            self.track_rows.append(row)
+        self._fit_strips()
+
+    def _fit_strips(self, event=None) -> None:
+        """
+        Vertical layout only: size every fader to the mixer viewport, so
+        the name, the value and the M/S buttons never get clipped — the
+        whole point of the strips layout is fitting a short screen.
+        """
+        if MIXER_LAYOUT != "strips" or not self.track_rows:
+            return
+        try:
+            scale = ctk.ScalingTracker.get_widget_scaling(self)
+        except Exception:
+            scale = 1.0
+        avail = self.mixer_host.winfo_height() / max(scale, 0.1)
+        compact = avail < _STRIP_COMPACT_AT
+        chrome = _STRIP_CHROME_MIN if compact else _STRIP_CHROME_H
+        h = int(max(56, min(220, avail - chrome)))
+        # hysteresis: ignore the sub-5 px jitter of resize events
+        if abs(h - self._strip_fader_h) < 5 and compact == self._strip_compact:
+            return
+        self._strip_fader_h, self._strip_compact = h, compact
+        for strip in [self.master_row, *self.track_rows]:
+            strip.set_fader_height(h, compact)
+
+    def _on_layout(self, value: str) -> None:
+        global MIXER_LAYOUT
+        new = "strips" if value == L("layout_strips") else "rows"
+        if new == MIXER_LAYOUT:
+            return
+        MIXER_LAYOUT = new
+        _SETTINGS["mixer_layout"] = new
+        _save_settings(_SETTINGS)
+        self._build_mixer_body()
+
+    def _on_contact(self) -> None:
+        """The one item behind the "?": who to write to, and which build."""
+        if getattr(self, "_contact_win", None) is not None:
+            try:
+                if self._contact_win.winfo_exists():
+                    self._contact_win.focus_force()
+                    return
+            except Exception:
+                pass
+        self._contact_win = ContactDialog(self)
+
+    def _on_stem_mode(self, value: str) -> None:
+        """Pill picker changed: show the stems of the selected mode."""
+        self.stem_desc.configure(text=STEM_DESC.get(value, ""))
 
     # ------------------------------------------------------------ language --
 
@@ -1688,7 +2532,9 @@ class IsolateApp(_Root):
         if not self.source_wav:
             self._set_status(L("st_load_first_sep"))
             return
-        model_spec, stem_order = STEM_MODELS[self.stem_var.get()]
+        # the picker holds the short label; STEM_MODELS is keyed by the full one
+        model_spec, stem_order = STEM_MODELS[_SHORT_TO_FULL[
+            self.stem_var.get()]]
         self._run_async(self._task_separate, model_spec, stem_order)
 
     def _task_separate(self, model_spec: str, stem_order: list[str]) -> None:
@@ -1724,25 +2570,35 @@ class IsolateApp(_Root):
         self._status_async(L("st_encoding", fmt=fmt.upper()))
         export_mix(mix, self.engine.samplerate, out_path, fmt,
                    self.temp_dir)
-        self._status_async(L("st_exported", path=out_path))
+        # companion click track (always WAV, full click level): the same
+        # timeline as the mix, so it drops into any DAW next to it
+        click = self.engine.click_track
+        if click is not None:
+            stem = Path(out_path).stem
+            base = stem[:-4] if stem.endswith("_mix") else stem
+            metro_path = str(Path(out_path).with_name(
+                base + "_metronome.wav"))
+            export_mix(np.repeat(click[:, None], 2, axis=1),
+                       self.engine.samplerate, metro_path, "wav",
+                       self.temp_dir)
+            self._status_async(L("st_exported_metro", path=out_path,
+                                 metro=Path(metro_path).name))
+        else:
+            self._status_async(L("st_exported", path=out_path))
 
     # ------------------------------------------------------------ mixer UI --
 
     def _install_tracks(self, named_arrays: list[tuple[str, np.ndarray]],
                         samplerate: int, status: str) -> None:
         self.engine.set_tracks(named_arrays, samplerate)
-        for row in self.track_rows:
-            row.destroy()
-        self.track_rows.clear()
-        self.mixer_hint.grid_remove()
-        # master strip stays fixed at row 0; stem rows rebuild below it
-        for i, track in enumerate(self.engine.tracks):
-            row = TrackRow(self.mixer, track, on_change=lambda: None)
-            row.grid(row=i + 2, column=0, sticky="ew", padx=6, pady=4)
-            self.track_rows.append(row)
+        self._beats_base = None          # new material: stale beat grid
+        # master strip stays fixed first; stem channels rebuild after it,
+        # in whichever layout (rows / vertical strips) is active
+        self._populate_mixer()
         self.timeline.set(0.0)
         self._set_status(status)
-        self._start_analysis()
+        self._key_last = None            # new material: stale key
+        self._start_analysis(refresh_key=True)
 
     # ------------------------------------------------------ music analysis --
 
@@ -1752,29 +2608,70 @@ class IsolateApp(_Root):
             return
         self._start_analysis()
 
-    def _start_analysis(self) -> None:
-        """Detect key & BPM of the loaded material on a background thread."""
-        if self._analyzing or not self.engine.tracks:
+    def _start_analysis(self, refresh_key: bool = True) -> None:
+        """
+        Detect BPM + beat grid of the AUDIBLE material (post-fader) on a
+        background thread; the grid also (re)builds the metronome click.
+        Mixer changes re-trigger it (debounced) with refresh_key=False:
+        the BPM follows what is audible, but the KEY is fixed per track —
+        computed once over the whole full mix, faders ignored — matching
+        the industry convention (Mixed In Key, Essentia, madmom,
+        KeyFinder all report one static global key per track).
+        """
+        if not self.engine.tracks:
+            return
+        if self._analyzing:                 # queue a rerun instead of racing
+            self._analysis_dirty = True
+            self._analysis_dirty_key = self._analysis_dirty_key or refresh_key
             return
         self._analyzing = True
-        self.key_label.configure(text="…", text_color=AMBER_DIM)
+        if refresh_key:
+            self.key_label.configure(text="…", text_color=AMBER_DIM)
         self.bpm_label.configure(text="…", text_color=AMBER_DIM)
+        self._refresh_metro_button()
 
         sr = self.engine.samplerate
         n = self.engine.n_frames
         tracks = list(self.engine.tracks)
+        any_solo = any(t.solo for t in tracks)
+        audible = [t for t in tracks
+                   if not t.mute and (not any_solo or t.solo)
+                   and t.gain > 0.02]
+        if not audible:                     # everything muted: analyse all
+            audible = tracks
 
         def work():
             try:
-                # analyse up to 60 s from the middle of the FULL mix
-                # (stems summed back together, faders ignored on purpose)
-                span = min(n, 60 * sr)
-                start = max(0, (n - span) // 2)
-                mono = np.zeros(span, dtype=np.float32)
-                for t in tracks:
-                    mono += t.data[start:start + span].mean(axis=1)
-                bpm = detect_bpm(mono, sr)
-                key = detect_key(mono, sr)
+                # audible mix (post-fader, pre-master)
+                mono = np.zeros(n, dtype=np.float32)
+                for t in audible:
+                    mono += t.data.mean(axis=1) * t.gain
+                # beat source: prefer the drums stem when audible and
+                # non-silent — percussive material carries the pulse
+                # (Gkiokas 2012; Chiu 2021), while predominant vocals and
+                # harmonic content mislead the onset envelope (Zapata &
+                # Gómez 2013). Muting the drums re-routes to the mix.
+                beat_src = _pick_beat_source(audible, n)
+                if beat_src is None:
+                    beat_src = mono
+                res = detect_beats(beat_src, sr)
+                bpm, click, beat_times = None, None, None
+                if res is not None:
+                    bpm, beat_times = res
+                    self._beats_base = beat_times
+                    click = render_click_track(
+                        scale_beat_grid(beat_times, self._metro_mult), n, sr)
+                key = self._key_last
+                if refresh_key:
+                    # key: whole track, FULL mix, faders ignored — the
+                    # song's key does not change when a stem is muted
+                    key_mono = np.zeros(n, dtype=np.float32)
+                    for t in tracks:
+                        key_mono += t.data.mean(axis=1)
+                    key = detect_key(key_mono, sr)
+                    self._key_last = key
+                self._bpm_global = bpm
+                self.engine.set_click_track(click, beat_times)
                 key_txt = key_short(key) or "—"     # tema §3: Am, C, F#m...
                 bpm_txt = f"{bpm:.0f}" if bpm else "—"
                 self.after(0, lambda: (
@@ -1783,21 +2680,79 @@ class IsolateApp(_Root):
                         text_color=AMBER if key else AMBER_DIM),
                     self.bpm_label.configure(
                         text=bpm_txt,
-                        text_color=AMBER if bpm else AMBER_DIM)))
+                        text_color=AMBER if bpm else AMBER_DIM),
+                    self._refresh_metro_button()))
                 if key or bpm:
                     self._status_async(L("st_analysis", key=key or "?",
                                          bpm=bpm or "?"))
             except Exception:
                 log.error("Analysis failed:\n%s", traceback.format_exc())
+                self._bpm_global = None
+                self._beats_base = None
+                self.engine.set_click_track(None)
                 self.after(0, lambda: (
                     self.key_label.configure(text="—",
                                              text_color=AMBER_DIM),
                     self.bpm_label.configure(text="—",
-                                             text_color=AMBER_DIM)))
+                                             text_color=AMBER_DIM),
+                    self._refresh_metro_button()))
             finally:
                 self._analyzing = False
+                if self._analysis_dirty:
+                    self._analysis_dirty = False
+                    rerun_key = self._analysis_dirty_key
+                    self._analysis_dirty_key = False
+                    self.after(0, lambda: self._start_analysis(rerun_key))
 
         threading.Thread(target=work, daemon=True).start()
+
+    # ---------------------------------------------------------- metronome --
+
+    def _on_metronome(self) -> None:
+        """Toggle the click track layered over the master output."""
+        if self.engine.click_track is None:
+            self._set_status(L("st_metro_unavailable"))
+            return
+        self.engine.metronome_on = not self.engine.metronome_on
+        self._refresh_metro_button()
+
+    def _refresh_metro_button(self) -> None:
+        # tema §5: active state = amber bg with dark text (like Solo)
+        on = self.engine.metronome_on and self.engine.click_track is not None
+        self.metro_btn.configure(
+            fg_color=AMBER if on else BTN_GHOST_BG,
+            text_color=BTN_PRI_TX if on else COL_TEXT_2)
+
+    def _on_metro_gain(self, value: float) -> None:
+        self.engine.metronome_gain = float(value) / 100.0
+
+    def _on_metro_mult(self, value: str) -> None:
+        """Halve / double the click rate, keeping the detected phase."""
+        self._metro_mult = {"÷2": 0.5, "1×": 1.0, "×2": 2.0}.get(value, 1.0)
+        base = self._beats_base
+        if base is None or self.engine.n_frames <= 0:
+            return
+        was_on = self.engine.metronome_on
+        click = render_click_track(scale_beat_grid(base, self._metro_mult),
+                                   self.engine.n_frames,
+                                   self.engine.samplerate)
+        self.engine.set_click_track(click, base)   # BPM chip keeps the beat
+        self.engine.metronome_on = was_on
+        self._refresh_metro_button()
+
+    def _on_mix_change(self) -> None:
+        """Mixer changed (gain/mute/solo): re-analyse the audible material
+        so Key/BPM and the metronome grid follow it (debounced)."""
+        if self._mix_change_job is not None:
+            try:
+                self.after_cancel(self._mix_change_job)
+            except Exception:
+                pass
+        self._mix_change_job = self.after(900, self._mix_change_fire)
+
+    def _mix_change_fire(self) -> None:
+        self._mix_change_job = None
+        self._start_analysis(refresh_key=False)
 
     # ------------------------------------------------------- async plumbing --
 
@@ -1860,8 +2815,30 @@ class IsolateApp(_Root):
                 text=f"{format_time(pos)} / {format_time(dur)}")
             self.timeline.set(pos / dur if dur > 0 else 0.0)
 
-        # VU meters (post-fader per track, post-master on the master bus)
+        # BPM chip: instantaneous tempo while playing (median interval of
+        # the beat grid around the playhead — follows tempo drift, like a
+        # dynamic DJ beatgrid); reverts to the global tempo when stopped
         playing = self.engine.playing
+        bt = self.engine.beat_times
+        if playing and bt is not None and len(bt) >= 5:
+            i = int(np.searchsorted(bt, self.engine.position_seconds))
+            lo, hi = max(0, i - 3), min(len(bt), i + 3)
+            iv = np.diff(bt[lo:hi])
+            if len(iv) >= 2:
+                med = float(np.median(iv))
+                if med > 0:
+                    txt = f"{60.0 / med:.0f}"
+                    if txt != self._bpm_live_txt:
+                        self._bpm_live_txt = txt
+                        self.bpm_label.configure(text=txt,
+                                                 text_color=AMBER)
+        elif self._bpm_live_txt is not None:
+            self._bpm_live_txt = None
+            if self._bpm_global is not None and not self._analyzing:
+                self.bpm_label.configure(text=f"{self._bpm_global:.0f}",
+                                         text_color=AMBER)
+
+        # VU meters (post-fader per track, post-master on the master bus)
         levels = self.engine.levels
         for i, row in enumerate(self.track_rows):
             row.meter.set_level(

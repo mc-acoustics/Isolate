@@ -13,11 +13,19 @@ detecção automática de tom e BPM, e export do seu mix. Interface em
 ## Recursos
 
 - **Separação de stems** com [Spleeter](https://github.com/deezer/spleeter)
-  (Deezer): 2, 4 ou 5 stems, modelos de alta fidelidade (16 kHz).
-- **Mixer multi-track**: fader de ganho, mute e solo por stem, canal MASTER,
-  VU meters LED com peak-hold — tudo em tempo real, sample-accurate.
+  (Deezer): 2, 4 ou 5 stems, modelos de alta fidelidade (16 kHz) — ou
+  **6 stems com [Demucs](https://github.com/facebookresearch/demucs)
+  (`htdemucs_6s`), que separa a guitarra**.
+- **Mixer multi-track em dois layouts**: *Linhas* (canais horizontais) ou
+  *Canais* (faders verticais estilo console, todos os stems visíveis de uma
+  vez em telas de notebook). Fader de ganho, mute e solo por stem, canal
+  MASTER, VU meters LED com peak-hold — tudo em tempo real, sample-accurate.
 - **Análise musical**: tom (perfis de Krumhansl-Kessler) e BPM
   (autocorrelação de spectral flux) detectados automaticamente, em NumPy puro.
+- **Metrônomo sincronizado**: click travado na grade de batidas detectada
+  (pulso vindo da bateria separada), com volume próprio e seleção de nível
+  ÷2 / 1× / ×2. Ao exportar, sai também um `_metronome.wav` na mesma linha
+  do tempo, para abrir num DAW ao lado do mix.
 - **Entrada flexível**: arraste um arquivo (`.wav .mp3 .m4a .mp4`), navegue,
   ou cole uma URL do YouTube (via yt-dlp).
 - **Export**: WAV 16-bit/44.1 kHz ou MP3 320 kbps CBR do mix atual.
@@ -94,11 +102,19 @@ automatic key and BPM detection, and mix export. Interface available in
 ## Features
 
 - **Stem separation** with [Spleeter](https://github.com/deezer/spleeter)
-  (Deezer): 2, 4 or 5 stems, high-fidelity models (16 kHz).
-- **Multi-track mixer**: gain fader, mute and solo per stem, MASTER channel,
-  LED VU meters with peak-hold — all real-time, sample-accurate.
+  (Deezer): 2, 4 or 5 stems, high-fidelity models (16 kHz) — or **6 stems
+  with [Demucs](https://github.com/facebookresearch/demucs) (`htdemucs_6s`),
+  which separates the guitar**.
+- **Multi-track mixer, two layouts**: *Rows* (horizontal channels) or
+  *Strips* (vertical console faders, every stem visible at once on laptop
+  screens). Gain fader, mute and solo per stem, MASTER channel, LED VU
+  meters with peak-hold — all real-time, sample-accurate.
 - **Musical analysis**: key (Krumhansl-Kessler profiles) and BPM
   (spectral-flux autocorrelation) detected automatically, in pure NumPy.
+- **Synced metronome**: the click is locked to the detected beat grid (the
+  pulse comes from the separated drums), with its own volume and a
+  ÷2 / 1× / ×2 level switch. Exporting also writes a `_metronome.wav` on
+  the same timeline, to drop into a DAW next to the mix.
 - **Flexible input**: drag & drop a file (`.wav .mp3 .m4a .mp4`), browse,
   or paste a YouTube URL (via yt-dlp).
 - **Export**: WAV 16-bit/44.1 kHz or MP3 320 kbps CBR of the current mix.
