@@ -16,6 +16,10 @@ detecção automática de tom e BPM, e export do seu mix. Interface em
   (Deezer): 2, 4 ou 5 stems, modelos de alta fidelidade (16 kHz) — ou
   **6 stems com [Demucs](https://github.com/facebookresearch/demucs)
   (`htdemucs_6s`), que separa a guitarra**.
+- **Modo *2 Stems+*: voz e acompanhamento pelo Demucs (`htdemucs`).** Soma
+  tudo que não é voz num canal só. Medido contra o ground truth do MUSDB18
+  (30 faixas), a voz sai **+2,5 dB de SDR** acima do 2 stems do Spleeter, ao
+  custo de ser mais lento. É a melhor escolha para karaokê e playback.
 - **Mixer multi-track em dois layouts**: *Linhas* (canais horizontais) ou
   *Canais* (faders verticais estilo console, todos os stems visíveis de uma
   vez em telas de notebook). Fader de ganho, mute e solo por stem, canal
@@ -105,6 +109,11 @@ automatic key and BPM detection, and mix export. Interface available in
   (Deezer): 2, 4 or 5 stems, high-fidelity models (16 kHz) — or **6 stems
   with [Demucs](https://github.com/facebookresearch/demucs) (`htdemucs_6s`),
   which separates the guitar**.
+- ***2 Stems+* mode: vocals and accompaniment through Demucs (`htdemucs`).**
+  Every non-vocal source is summed back into a single channel. Measured
+  against MUSDB18 ground truth (30 tracks), vocals come out **+2.5 dB SDR**
+  over Spleeter's 2 stems, at the cost of being slower. The best pick for
+  karaoke and backing tracks.
 - **Multi-track mixer, two layouts**: *Rows* (horizontal channels) or
   *Strips* (vertical console faders, every stem visible at once on laptop
   screens). Gain fader, mute and solo per stem, MASTER channel, LED VU

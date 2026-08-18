@@ -39,7 +39,7 @@ from tkinter import filedialog, messagebox
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")   # silence TF chatter
 
 _APP_NAME = "Isolate"
-APP_VERSION = "2.1.2"
+APP_VERSION = "2.2"
 _APPDATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / _APP_NAME
 _MODELS_DIR = _APPDATA_DIR / "pretrained_models"
 _MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -125,16 +125,21 @@ I18N: dict[str, dict[str, str]] = {
         "device_default": "Padrão do sistema",
         "lbl_sep_mode": "M O D O   D E   S E P A R A Ç Ã O",
         "stems2": "2 Stems (Vocais / Acompanhamento)",
+        "stems2hq": "2 Stems — Demucs (Vocais / Acompanhamento; "
+                    "melhor qualidade)",
         "stems4": "4 Stems (Vocais / Bateria / Baixo / Outros)",
         "stems5": "5 Stems (Vocais / Bateria / Baixo / Piano / Outros)",
         "stems6": "6 Stems — Demucs (com Guitarra; mais lento)",
         # compact mode picker (v2.1.1): short label on the pill, full stem
         # list on the caption line beside it
         "stems2_short": "2 Stems",
+        "stems2hq_short": "2 Stems+",
         "stems4_short": "4 Stems",
         "stems5_short": "5 Stems",
         "stems6_short": "6 Stems",
         "stems2_desc": "Vocais / Acompanhamento",
+        "stems2hq_desc": "Demucs: Vocais / Acompanhamento — voz mais "
+                         "limpa, mais lento",
         "stems4_desc": "Vocais / Bateria / Baixo / Outros",
         "stems5_desc": "Vocais / Bateria / Baixo / Piano / Outros",
         "stems6_desc": "Demucs: Vocais / Bateria / Baixo / Guitarra / "
@@ -233,14 +238,19 @@ I18N: dict[str, dict[str, str]] = {
         "device_default": "System default",
         "lbl_sep_mode": "S E P A R A T I O N   M O D E",
         "stems2": "2 Stems (Vocals / Accompaniment)",
+        "stems2hq": "2 Stems — Demucs (Vocals / Accompaniment; "
+                    "better quality)",
         "stems4": "4 Stems (Vocals / Drums / Bass / Other)",
         "stems5": "5 Stems (Vocals / Drums / Bass / Piano / Other)",
         "stems6": "6 Stems — Demucs (with Guitar; slower)",
         "stems2_short": "2 Stems",
+        "stems2hq_short": "2 Stems+",
         "stems4_short": "4 Stems",
         "stems5_short": "5 Stems",
         "stems6_short": "6 Stems",
         "stems2_desc": "Vocals / Accompaniment",
+        "stems2hq_desc": "Demucs: Vocals / Accompaniment — cleaner "
+                         "vocals, slower",
         "stems4_desc": "Vocals / Drums / Bass / Other",
         "stems5_desc": "Vocals / Drums / Bass / Piano / Other",
         "stems6_desc": "Demucs: Vocals / Drums / Bass / Guitar / Piano / "
@@ -340,6 +350,14 @@ def L(key: str, /, **kw) -> str:
 
 STEM_MODELS = {
     L("stems2"): ("spleeter:2stems-16kHz", ["vocals", "accompaniment"]),
+    # v2.2 — Demucs with every non-vocal source summed back into one
+    # "accompaniment" channel (what Demucs itself does for `--two-stems`).
+    # Model picked by an A/B over 30 MUSDB18 tracks with ground truth
+    # (medians, SDR of vocals / accompaniment): spleeter 6.64/10.88,
+    # htdemucs_6s 8.66/11.88, htdemucs 9.15/12.32, htdemucs_ft 9.38/12.43.
+    # htdemucs base beats _6s on both stems; _ft only buys +0.36 dB of
+    # vocals (its accompaniment ties, p=0.95) for 4x the time and 320 MB.
+    L("stems2hq"): ("demucs:htdemucs:vocals", ["vocals", "accompaniment"]),
     L("stems4"): ("spleeter:4stems-16kHz", ["vocals", "drums",
                                             "bass", "other"]),
     L("stems5"): ("spleeter:5stems-16kHz", ["vocals", "drums",
@@ -352,11 +370,13 @@ STEM_MODELS = {
 # ~110 px of vertical space and squeezed the mixer to ~1 visible strip on
 # 768 px laptop screens. It is now one pill row (short labels) plus a
 # caption line with the full stem list of the selected mode.
-STEM_SHORT: list[str] = [L("stems2_short"), L("stems4_short"),
-                         L("stems5_short"), L("stems6_short")]
+STEM_SHORT: list[str] = [L("stems2_short"), L("stems2hq_short"),
+                         L("stems4_short"), L("stems5_short"),
+                         L("stems6_short")]
 _SHORT_TO_FULL: dict[str, str] = dict(zip(STEM_SHORT, STEM_MODELS.keys()))
 STEM_DESC: dict[str, str] = {
     L("stems2_short"): L("stems2_desc"),
+    L("stems2hq_short"): L("stems2hq_desc"),
     L("stems4_short"): L("stems4_desc"),
     L("stems5_short"): L("stems5_desc"),
     L("stems6_short"): L("stems6_desc"),
@@ -795,6 +815,9 @@ def download_youtube(url: str, temp_dir: str,
 
 
 _SEPARATOR_CACHE: dict[str, object] = {}
+# Loaded torch nets, keyed by model name: several presets (6 stems and
+# 2 Stems+) share one net and must not load it twice.
+_DEMUCS_MODEL_CACHE: dict[str, object] = {}
 
 # Chunked separation keeps TensorFlow's peak memory flat regardless of track
 # length: separating a whole 3.5 min song at once peaks at ~10 GB of commit
@@ -818,6 +841,15 @@ _CORRUPT_MODEL_MARKERS = ("data loss", "datalosserror", "checksum",
                           "unexpected eof", "central directory")
 
 
+def _demucs_parts(model_spec: str) -> tuple[str, str | None]:
+    """Split a Demucs spec into (model name, solo source).
+    "demucs:htdemucs_6s" -> ("htdemucs_6s", None)
+    "demucs:htdemucs_6s:vocals" -> ("htdemucs_6s", "vocals")  # 2 Stems+
+    """
+    parts = model_spec.split(":")
+    return parts[1], (parts[2] if len(parts) > 2 else None)
+
+
 def _model_dir(model_spec: str) -> Path:
     return _MODELS_DIR / model_spec.split(":", 1)[1].split("-")[0]
 
@@ -837,6 +869,10 @@ def _purge_model(model_spec: str) -> None:
     attempt re-downloads them from scratch."""
     _SEPARATOR_CACHE.pop(model_spec, None)
     if model_spec.startswith("demucs:"):
+        # every preset built on this net has to be rebuilt after the purge
+        _DEMUCS_MODEL_CACHE.pop(_demucs_parts(model_spec)[0], None)
+        for spec in [s for s in _SEPARATOR_CACHE if s.startswith("demucs:")]:
+            _SEPARATOR_CACHE.pop(spec, None)
         shutil.rmtree(_TORCH_DIR / "hub" / "checkpoints", ignore_errors=True)
     else:
         shutil.rmtree(_model_dir(model_spec), ignore_errors=True)
@@ -881,16 +917,31 @@ class _DemucsSeparator:
     """Adapter exposing Spleeter's `.separate(waveform) -> dict` interface
     for a Demucs model, so `_separate_chunked` drives both engines. CPU
     only; apply_model already splits each call into ~8 s segments with
-    overlap, keeping memory bounded."""
+    overlap, keeping memory bounded.
 
-    def __init__(self, model_name: str):
+    With `solo` set, only that source is kept and every other one is summed
+    into a single "accompaniment" channel — the two-stem mode of Demucs
+    itself (`--two-stems`), used by the v2.2 "2 Stems+" preset.
+    """
+
+    def __init__(self, model_name: str, solo: str | None = None):
         import torch                          # heavy imports, keep lazy
         from demucs.pretrained import get_model
         self._torch = torch
-        self._model = get_model(model_name)
-        self._model.cpu()
-        self._model.eval()
-        self.sources = list(self._model.sources)
+        # Shared across presets: the 6-stem and the 2-stem+ modes run the
+        # same net, so they must not hold two copies of it in memory.
+        model = _DEMUCS_MODEL_CACHE.get(model_name)
+        if model is None:
+            model = get_model(model_name)
+            model.cpu()
+            model.eval()
+            _DEMUCS_MODEL_CACHE[model_name] = model
+        self._model = model
+        self.sources = list(model.sources)
+        if solo is not None and solo not in self.sources:
+            raise MediaError(L("err_stem_missing", name=solo))
+        self._solo = solo
+        self.outputs = ([solo, "accompaniment"] if solo else self.sources)
 
     def separate(self, waveform: np.ndarray) -> dict[str, np.ndarray]:
         from demucs.apply import apply_model
@@ -908,8 +959,13 @@ class _DemucsSeparator:
                               progress=False)[0]
         out = out * std + mean                # (n_sources, 2, n)
         arr = out.cpu().numpy()
-        return {src: np.ascontiguousarray(arr[i].T)
-                for i, src in enumerate(self.sources)}
+        if self._solo is None:
+            return {src: np.ascontiguousarray(arr[i].T)
+                    for i, src in enumerate(self.sources)}
+        i = self.sources.index(self._solo)
+        rest = arr.sum(axis=0) - arr[i]       # (2, n)
+        return {self._solo: np.ascontiguousarray(arr[i].T),
+                "accompaniment": np.ascontiguousarray(rest.T)}
 
 
 def _separate_chunked(sep, wav_path: str, instruments: list[str],
@@ -971,7 +1027,7 @@ def separate_stems(source_wav: str, model_spec: str, stem_order: list[str],
             ckpt_dir = _TORCH_DIR / "hub" / "checkpoints"
             if not (ckpt_dir.exists() and any(ckpt_dir.glob("*.th"))):
                 progress(L("st_model_dl"))
-            sep = _DemucsSeparator(model_spec.split(":", 1)[1])
+            sep = _DemucsSeparator(*_demucs_parts(model_spec))
         else:
             from spleeter.separator import Separator   # heavy, keep lazy
             # Guard against a partially-downloaded model: Spleeter skips
