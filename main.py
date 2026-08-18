@@ -2923,10 +2923,20 @@ def _selftest(argv: list[str]) -> None:
     # gone since v2.2, so hardcoding a spec here would break the default.
     spec = argv[1] if len(argv) > 1 else next(iter(STEM_MODELS.values()))[0]
     order = next(o for s, o in STEM_MODELS.values() if s == spec)
+    def echo(msg: object) -> None:
+        """Print without ever aborting the run on encoding: a console at
+        the Windows default codepage (cp1252) cannot encode the ☕ of the
+        progress message, and the raised UnicodeEncodeError used to kill
+        the selftest mid-separation."""
+        try:
+            print(msg)
+        except UnicodeEncodeError:
+            print(str(msg).encode("ascii", "replace").decode("ascii"))
+
     tmp = tempfile.mkdtemp(prefix="isolate_selftest_")
     try:
-        stems = separate_stems(wav, spec, order, tmp, progress=print)
-        print("SELFTEST OK:", [(n, a.shape) for n, a in stems])
+        stems = separate_stems(wav, spec, order, tmp, progress=echo)
+        echo(f"SELFTEST OK: {[(n, a.shape) for n, a in stems]}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
