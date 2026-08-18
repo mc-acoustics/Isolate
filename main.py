@@ -124,22 +124,18 @@ I18N: dict[str, dict[str, str]] = {
         "lbl_output": "Saída:",
         "device_default": "Padrão do sistema",
         "lbl_sep_mode": "M O D O   D E   S E P A R A Ç Ã O",
-        "stems2": "2 Stems (Vocais / Acompanhamento)",
-        "stems2hq": "2 Stems — Demucs (Vocais / Acompanhamento; "
-                    "melhor qualidade)",
+        "stems2": "2 Stems — Demucs (Vocais / Acompanhamento)",
         "stems4": "4 Stems (Vocais / Bateria / Baixo / Outros)",
         "stems5": "5 Stems (Vocais / Bateria / Baixo / Piano / Outros)",
         "stems6": "6 Stems — Demucs (com Guitarra; mais lento)",
         # compact mode picker (v2.1.1): short label on the pill, full stem
         # list on the caption line beside it
         "stems2_short": "2 Stems",
-        "stems2hq_short": "2 Stems+",
         "stems4_short": "4 Stems",
         "stems5_short": "5 Stems",
         "stems6_short": "6 Stems",
-        "stems2_desc": "Vocais / Acompanhamento",
-        "stems2hq_desc": "Demucs: Vocais / Acompanhamento — voz mais "
-                         "limpa, mais lento",
+        "stems2_desc": "Vocais / Acompanhamento — voz mais limpa, "
+                       "mais lento",
         "stems4_desc": "Vocais / Bateria / Baixo / Outros",
         "stems5_desc": "Vocais / Bateria / Baixo / Piano / Outros",
         "stems6_desc": "Demucs: Vocais / Bateria / Baixo / Guitarra / "
@@ -237,20 +233,15 @@ I18N: dict[str, dict[str, str]] = {
         "lbl_output": "Output:",
         "device_default": "System default",
         "lbl_sep_mode": "S E P A R A T I O N   M O D E",
-        "stems2": "2 Stems (Vocals / Accompaniment)",
-        "stems2hq": "2 Stems — Demucs (Vocals / Accompaniment; "
-                    "better quality)",
+        "stems2": "2 Stems — Demucs (Vocals / Accompaniment)",
         "stems4": "4 Stems (Vocals / Drums / Bass / Other)",
         "stems5": "5 Stems (Vocals / Drums / Bass / Piano / Other)",
         "stems6": "6 Stems — Demucs (with Guitar; slower)",
         "stems2_short": "2 Stems",
-        "stems2hq_short": "2 Stems+",
         "stems4_short": "4 Stems",
         "stems5_short": "5 Stems",
         "stems6_short": "6 Stems",
-        "stems2_desc": "Vocals / Accompaniment",
-        "stems2hq_desc": "Demucs: Vocals / Accompaniment — cleaner "
-                         "vocals, slower",
+        "stems2_desc": "Vocals / Accompaniment — cleaner vocals, slower",
         "stems4_desc": "Vocals / Drums / Bass / Other",
         "stems5_desc": "Vocals / Drums / Bass / Piano / Other",
         "stems6_desc": "Demucs: Vocals / Drums / Bass / Guitar / Piano / "
@@ -349,7 +340,6 @@ def L(key: str, /, **kw) -> str:
 
 
 STEM_MODELS = {
-    L("stems2"): ("spleeter:2stems-16kHz", ["vocals", "accompaniment"]),
     # v2.2 — Demucs with every non-vocal source summed back into one
     # "accompaniment" channel (what Demucs itself does for `--two-stems`).
     # Model picked by an A/B over 30 MUSDB18 tracks with ground truth
@@ -357,7 +347,9 @@ STEM_MODELS = {
     # htdemucs_6s 8.66/11.88, htdemucs 9.15/12.32, htdemucs_ft 9.38/12.43.
     # htdemucs base beats _6s on both stems; _ft only buys +0.36 dB of
     # vocals (its accompaniment ties, p=0.95) for 4x the time and 320 MB.
-    L("stems2hq"): ("demucs:htdemucs:vocals", ["vocals", "accompaniment"]),
+    # It replaced Spleeter's 2stems outright, which lost by ~2.5 dB of
+    # vocals in 29 of the 30 tracks.
+    L("stems2"): ("demucs:htdemucs:vocals", ["vocals", "accompaniment"]),
     L("stems4"): ("spleeter:4stems-16kHz", ["vocals", "drums",
                                             "bass", "other"]),
     L("stems5"): ("spleeter:5stems-16kHz", ["vocals", "drums",
@@ -370,13 +362,11 @@ STEM_MODELS = {
 # ~110 px of vertical space and squeezed the mixer to ~1 visible strip on
 # 768 px laptop screens. It is now one pill row (short labels) plus a
 # caption line with the full stem list of the selected mode.
-STEM_SHORT: list[str] = [L("stems2_short"), L("stems2hq_short"),
-                         L("stems4_short"), L("stems5_short"),
-                         L("stems6_short")]
+STEM_SHORT: list[str] = [L("stems2_short"), L("stems4_short"),
+                         L("stems5_short"), L("stems6_short")]
 _SHORT_TO_FULL: dict[str, str] = dict(zip(STEM_SHORT, STEM_MODELS.keys()))
 STEM_DESC: dict[str, str] = {
     L("stems2_short"): L("stems2_desc"),
-    L("stems2hq_short"): L("stems2hq_desc"),
     L("stems4_short"): L("stems4_desc"),
     L("stems5_short"): L("stems5_desc"),
     L("stems6_short"): L("stems6_desc"),
@@ -2929,7 +2919,9 @@ def _selftest(argv: list[str]) -> None:
     [model_spec]`), used to validate frozen builds; output lands in
     isolate.log under --windowed."""
     wav = argv[0]
-    spec = argv[1] if len(argv) > 1 else "spleeter:2stems-16kHz"
+    # default: the first registered mode (2 Stems); Spleeter's 2stems is
+    # gone since v2.2, so hardcoding a spec here would break the default.
+    spec = argv[1] if len(argv) > 1 else next(iter(STEM_MODELS.values()))[0]
     order = next(o for s, o in STEM_MODELS.values() if s == spec)
     tmp = tempfile.mkdtemp(prefix="isolate_selftest_")
     try:
