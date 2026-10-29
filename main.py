@@ -18,6 +18,7 @@ background threads; the UI thread is only ever touched via `after()`.
 from __future__ import annotations
 
 import atexit
+import json
 import logging
 import os
 import queue
@@ -28,6 +29,7 @@ import tempfile
 import threading
 import traceback
 import uuid
+from datetime import datetime
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -39,7 +41,7 @@ from tkinter import filedialog, messagebox
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")   # silence TF chatter
 
 _APP_NAME = "Isolate"
-APP_VERSION = "2.2"
+APP_VERSION = "2.3-beta"
 _APPDATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / _APP_NAME
 _MODELS_DIR = _APPDATA_DIR / "pretrained_models"
 _MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -201,6 +203,46 @@ I18N: dict[str, dict[str, str]] = {
         "st_metro_unavailable": "O pulso ainda não foi detectado — "
                                 "carregue e analise uma faixa primeiro.",
         "st_exported_metro": "Exportado: {path} (+ metrônomo: {metro})",
+        "lbl_speed": "Velocidade:",
+        "st_speed_working": "Ajustando o andamento para {pct}%... "
+                            "só um instante ☕",
+        "st_speed_done": "● Velocidade {pct}% — mesmo tom, mais tempo "
+                         "para tocar junto.",
+        "st_speed_done_bpm": "● Velocidade {pct}%: {bpm0} → {bpm} BPM, "
+                             "no mesmo tom.",
+        "st_speed_normal": "● Velocidade original (100%).",
+        "err_speed_ffmpeg": "Mudar a velocidade exige o ffmpeg.",
+        "err_speed": "Não foi possível mudar a velocidade:\n{err}",
+        "btn_library": "Biblioteca",
+        "btn_save_lib": "Salvar na biblioteca",
+        "lib_title": "Biblioteca",
+        "lib_count": "{n} músicas",
+        "lib_count_1": "1 música",
+        "lib_search": "Buscar...",
+        "lib_empty": "Nenhuma música salva ainda.\nSepare uma faixa e clique em "
+                     "“Salvar na biblioteca” para guardá-la aqui.",
+        "lib_no_match": "Nada encontrado para “{q}”.",
+        "lib_open": "Abrir",
+        "lib_open_folder": "Abrir pasta",
+        "lib_change_folder": "Alterar pasta...",
+        "lib_choose_folder": "Escolha a pasta da biblioteca",
+        "lib_close": "Fechar",
+        "lib_mode_original": "Original",
+        "lib_delete_q": "Mover “{name}” para a Lixeira?",
+        "lib_exists": "Já existe “{name}” na biblioteca.\n\n"
+                      "Sim — substituir pela versão atual\n"
+                      "Não — salvar como uma cópia nova\n"
+                      "Cancelar — não salvar",
+        "st_saving": "Salvando na biblioteca ({pct}%)... só um instante ☕",
+        "st_saved": "● Salvo na biblioteca: {name}",
+        "st_opening": "Abrindo “{name}” da biblioteca...",
+        "st_opened": "● Aberto da biblioteca: {name} — {n} faixas, offline.",
+        "st_nothing_save": "Nada para salvar — carregue ou separe uma "
+                           "música primeiro.",
+        "err_save": "Não foi possível salvar na biblioteca:\n{err}",
+        "err_session_bad": "“{name}” não é uma sessão válida do Isolate "
+                           "(arquivos faltando ou corrompidos).",
+        "err_delete": "Não foi possível apagar:\n{err}",
         "st_playback_err": "Erro de reprodução: {exc}",
         "st_device_err": "Erro no dispositivo: {exc}",
         "st_no_ffmpeg": "Aviso: ffmpeg não encontrado no PATH — carregar "
@@ -307,6 +349,45 @@ I18N: dict[str, dict[str, str]] = {
         "st_metro_unavailable": "Beat grid not detected yet — load and "
                                 "analyze a track first.",
         "st_exported_metro": "Exported: {path} (+ metronome: {metro})",
+        "lbl_speed": "Speed:",
+        "st_speed_working": "Setting the tempo to {pct}%... just a "
+                            "moment ☕",
+        "st_speed_done": "● Speed {pct}% — same key, more time to play "
+                         "along.",
+        "st_speed_done_bpm": "● Speed {pct}%: {bpm0} → {bpm} BPM, same key.",
+        "st_speed_normal": "● Original speed (100%).",
+        "err_speed_ffmpeg": "Changing the speed requires ffmpeg.",
+        "err_speed": "Could not change the speed:\n{err}",
+        "btn_library": "Library",
+        "btn_save_lib": "Save to library",
+        "lib_title": "Library",
+        "lib_count": "{n} songs",
+        "lib_count_1": "1 song",
+        "lib_search": "Search...",
+        "lib_empty": "No songs saved yet.\nSeparate a track and click "
+                     "“Save to library” to keep it here.",
+        "lib_no_match": "Nothing found for “{q}”.",
+        "lib_open": "Open",
+        "lib_open_folder": "Open folder",
+        "lib_change_folder": "Change folder...",
+        "lib_choose_folder": "Choose the library folder",
+        "lib_close": "Close",
+        "lib_mode_original": "Original",
+        "lib_delete_q": "Move “{name}” to the Recycle Bin?",
+        "lib_exists": "“{name}” is already in the library.\n\n"
+                      "Yes — replace it with the current version\n"
+                      "No — save it as a new copy\n"
+                      "Cancel — don't save",
+        "st_saving": "Saving to the library ({pct}%)... just a moment ☕",
+        "st_saved": "● Saved to the library: {name}",
+        "st_opening": "Opening “{name}” from the library...",
+        "st_opened": "● Opened from the library: {name} — {n} tracks, "
+                     "offline.",
+        "st_nothing_save": "Nothing to save — load or separate a song first.",
+        "err_save": "Could not save to the library:\n{err}",
+        "err_session_bad": "“{name}” is not a valid Isolate session "
+                           "(missing or corrupted files).",
+        "err_delete": "Could not delete:\n{err}",
         "st_playback_err": "Playback error: {exc}",
         "st_device_err": "Device error: {exc}",
         "st_no_ffmpeg": "Warning: ffmpeg not found on PATH — MP3/M4A/MP4 "
@@ -421,6 +502,19 @@ MONO_FAMILY = "Consolas"
 STEM_LABELS = {inst: L(f"stem_{inst}")
                for inst in ("vocals", "drums", "bass", "piano",
                             "other", "accompaniment", "guitar")}
+# saved sessions store the stem id, not the (localized) channel name, so a
+# song saved in PT reopens with EN names after a language switch
+_LABEL_TO_STEM = {v: k for k, v in STEM_LABELS.items()}
+_LABEL_TO_STEM[L("track_original")] = "original"
+_SPEC_TO_SHORT = {STEM_MODELS[full][0]: short
+                  for short, full in _SHORT_TO_FULL.items()}
+
+
+def stem_label(stem_id: str) -> str:
+    """Channel name for a saved stem id ("drums" -> "Bateria" / "Drums")."""
+    if stem_id == "original":
+        return L("track_original")
+    return STEM_LABELS.get(stem_id, stem_id)
 
 
 def key_short(key: str | None) -> str | None:
@@ -478,11 +572,12 @@ _ensure_ffmpeg_on_path()
 class Track:
     """One mixer channel: immutable audio data + live mix parameters."""
 
-    __slots__ = ("name", "data", "gain", "mute", "solo")
+    __slots__ = ("name", "orig", "data", "gain", "mute", "solo")
 
     def __init__(self, name: str, data: np.ndarray):
         self.name = name
-        self.data = data          # float32, shape (n_frames, 2)
+        self.orig = data          # float32, shape (base_frames, 2), 100% speed
+        self.data = data          # playback buffer: orig, or time-stretched
         self.gain = 1.0           # linear amplitude multiplier (0.0 .. 1.0)
         self.mute = False
         self.solo = False
@@ -500,7 +595,9 @@ class AudioEngine:
     def __init__(self):
         self.tracks: list[Track] = []
         self.samplerate = 44100
-        self.n_frames = 0
+        self.n_frames = 0                    # playback length (stretched)
+        self.base_frames = 0                 # length at the original speed
+        self.speed = 1.0                     # playback speed (pitch kept)
         self.device: int | None = None       # None -> system default
         self.master_gain = 1.0               # master fader (0.0 .. 1.0)
         self.levels = np.zeros(0)            # per-track post-fader peak
@@ -558,6 +655,8 @@ class AudioEngine:
             self._position = 0
             self.tracks = tracks
             self.n_frames = n
+            self.base_frames = n
+            self.speed = 1.0
             self.samplerate = samplerate
             self.levels = np.zeros(len(tracks))
             self.master_level = 0.0
@@ -577,6 +676,30 @@ class AudioEngine:
             self.beat_times = beat_times if click is not None else None
             if click is None:
                 self.metronome_on = False
+
+    def set_playback_speed(self, tracks: list[Track], speed: float,
+                           arrays: list[np.ndarray],
+                           click: np.ndarray | None,
+                           beat_times: np.ndarray | None) -> bool:
+        """Swap in the playback buffers for `speed` (one per track, equal
+        length) together with the matching click, atomically, keeping the
+        playhead on the same musical spot. Returns False — and changes
+        nothing — if the track set was replaced while they were rendered."""
+        with self._lock:
+            if tracks is not self.tracks:
+                return False
+            n = len(arrays[0]) if arrays else self.n_frames
+            pos = int(round(self._position * self.speed / speed))
+            for t, a in zip(self.tracks, arrays):
+                t.data = a
+            self.n_frames = n
+            self.speed = speed
+            self._position = min(pos, n)
+            self.click_track = click
+            self.beat_times = beat_times if click is not None else None
+            if click is None:
+                self.metronome_on = False
+        return True
 
     # -- device / stream -----------------------------------------------------
 
@@ -682,14 +805,15 @@ class AudioEngine:
     # -- offline mixdown --------------------------------------------------------
 
     def render_mix(self) -> np.ndarray:
-        """Full-length stereo mixdown honouring gain / mute / solo / master."""
+        """Full-length stereo mixdown honouring gain / mute / solo / master,
+        always at the ORIGINAL speed (the speed control is for practice)."""
         with self._lock:
-            mix = np.zeros((self.n_frames, 2), dtype=np.float32)
+            mix = np.zeros((self.base_frames, 2), dtype=np.float32)
             any_solo = any(t.solo for t in self.tracks)
             for t in self.tracks:
                 if t.mute or (any_solo and not t.solo):
                     continue
-                mix += t.data * t.gain
+                mix += t.orig * t.gain
             mix *= self.master_gain
         np.clip(mix, -1.0, 1.0, out=mix)
         return mix
@@ -1091,6 +1215,316 @@ def export_mix(mix: np.ndarray, samplerate: int, out_path: str,
 
 
 # ---------------------------------------------------------------------------
+# Song library (v2.3) — separated songs kept on disk and reopened offline
+# ---------------------------------------------------------------------------
+# One folder per song under the library root:
+#   <root>/<title>/session.json      mode, key, BPM, beat grid, mixer, speed
+#   <root>/<title>/01_vocals.flac …  one file per mixer channel (100% speed)
+#   <root>/<title>/original.flac     the source, so it can be re-separated
+# FLAC 24-bit is lossless at the mixer's resolution and about half the size
+# of a WAV: an archive of lesson songs must not eat the disk.
+
+SESSION_FILE = "session.json"
+SESSION_FORMAT = 1
+_SESSION_SUBTYPE = "PCM_24"
+_RESERVED_NAMES = {"CON", "PRN", "AUX", "NUL",
+                   *(f"COM{i}" for i in range(1, 10)),
+                   *(f"LPT{i}" for i in range(1, 10))}
+
+
+def default_library_dir() -> Path:
+    """Music\\Isolate, wherever Windows keeps the user's Music folder.
+    Not Documents: Windows 11 often moves Documents into OneDrive, and a
+    library of stems (100-300 MB per song) would fill the free 5 GB."""
+    try:
+        import ctypes
+        buf = ctypes.create_unicode_buffer(260)
+        # CSIDL_MYMUSIC = 13
+        if (ctypes.windll.shell32.SHGetFolderPathW(None, 13, None, 0, buf)
+                == 0 and buf.value):
+            return Path(buf.value) / _APP_NAME
+    except Exception:
+        pass
+    return Path.home() / "Music" / _APP_NAME
+
+
+def library_dir() -> Path:
+    """Library root: the folder chosen by the user, else the default."""
+    custom = _SETTINGS.get("library_dir")
+    return Path(custom) if custom else default_library_dir()
+
+
+def safe_folder_name(title: str) -> str:
+    """A Windows-safe folder / file name for a song title."""
+    name = "".join("_" if c in '<>:"/\\|?*' or ord(c) < 32 else c
+                   for c in title)
+    name = " ".join(name.split()).strip(" .")[:80].strip(" .")
+    if not name:
+        name = _APP_NAME
+    if name.split(".")[0].upper() in _RESERVED_NAMES:
+        name = "_" + name
+    return name
+
+
+def unique_folder(target: Path) -> Path:
+    """`target`, or "<target> (2)", "(3)"… — the first one not taken."""
+    base, n, cand = target.name, 2, target
+    while cand.exists():
+        cand = target.with_name(f"{base} ({n})")
+        n += 1
+    return cand
+
+
+def _write_audio(path: Path, data: np.ndarray, samplerate: int) -> float:
+    """Write a FLAC 24-bit file; returns the scale to multiply back on
+    load. A stem can overshoot 0 dBFS (the float mix clips only at the
+    output) and integer FLAC cannot hold that, so such a stem is stored
+    normalized to its peak instead of clipped."""
+    peak = float(np.max(np.abs(data))) if data.size else 0.0
+    scale = peak if peak > 1.0 else 1.0
+    sf.write(str(path), data / scale if scale != 1.0 else data, samplerate,
+             subtype=_SESSION_SUBTYPE)
+    return scale
+
+
+def _read_audio(path: Path, scale: float) -> tuple[np.ndarray, int]:
+    data, sr = sf.read(str(path), dtype="float32", always_2d=True)
+    if scale != 1.0:
+        data *= np.float32(scale)
+    return data, sr
+
+
+def save_session(target: Path, title: str,
+                 tracks: list[tuple[str, np.ndarray]], samplerate: int,
+                 source_wav: str | None, state: dict, progress) -> Path:
+    """
+    Save a song to the folder `target` (replaced if it exists): one FLAC
+    per mixer channel, given as (stem id, float32 array at 100% speed),
+    the source audio, and session.json with `state` (mode, key, BPM, beat
+    grid, mixer, speed, metronome). Everything is written to a sibling
+    folder first and swapped in at the end, so a crash or a full disk
+    never leaves half a song in place of a good one.
+    """
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_name(f".{target.name}.saving-{uuid.uuid4().hex[:6]}")
+    tmp.mkdir()
+    try:
+        n_files = len(tracks) + 1
+        stems = []
+        for i, (stem_id, data) in enumerate(tracks):
+            progress(L("st_saving", pct=int(100 * i / n_files)))
+            fname = f"{i + 1:02d}_{safe_folder_name(stem_id)}.flac"
+            scale = _write_audio(tmp / fname, data, samplerate)
+            stems.append({"id": stem_id, "file": fname, "scale": scale})
+        source = None
+        if len(stems) == 1 and stems[0]["id"] == "original":
+            # not separated yet: the only channel IS the source
+            source = {"file": stems[0]["file"], "scale": stems[0]["scale"]}
+        elif source_wav and os.path.exists(source_wav):
+            progress(L("st_saving", pct=int(100 * len(tracks) / n_files)))
+            data, sr = sf.read(source_wav, dtype="float32", always_2d=True)
+            source = {"file": "original.flac",
+                      "scale": _write_audio(tmp / "original.flac", data, sr)}
+        manifest = {
+            "format": SESSION_FORMAT,
+            "app_version": APP_VERSION,
+            "title": title,
+            "saved": datetime.now().isoformat(timespec="seconds"),
+            "samplerate": samplerate,
+            "frames": int(max((len(d) for _, d in tracks), default=0)),
+            "stems": stems,
+            "source": source,
+            **state,
+        }
+        (tmp / SESSION_FILE).write_text(
+            json.dumps(manifest, indent=1, ensure_ascii=False),
+            encoding="utf-8")
+        if target.exists():
+            old = target.with_name(f".{target.name}.old-{uuid.uuid4().hex[:6]}")
+            target.rename(old)
+            tmp.rename(target)
+            shutil.rmtree(old, ignore_errors=True)
+        else:
+            tmp.rename(target)
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    return target
+
+
+def read_manifest(folder: Path) -> dict:
+    """session.json of a saved song, checked against the files on disk.
+    Raises MediaError when the folder is not a usable session."""
+    folder = Path(folder)
+    try:
+        m = json.loads((folder / SESSION_FILE).read_text(encoding="utf-8"))
+        ok = (isinstance(m, dict)
+              and int(m.get("format", 0)) <= SESSION_FORMAT
+              and m.get("stems")
+              and all((folder / s["file"]).is_file() for s in m["stems"]))
+    except Exception:
+        ok = False
+    if not ok:
+        raise MediaError(L("err_session_bad", name=folder.name))
+    return m
+
+
+def list_library(root: Path) -> list[tuple[Path, dict]]:
+    """Every valid song under `root`, most recently saved first. Hidden
+    folders (half-written saves, see save_session) are skipped."""
+    root = Path(root)
+    if not root.is_dir():
+        return []
+    songs = []
+    for folder in root.iterdir():
+        if not folder.is_dir() or folder.name.startswith("."):
+            continue
+        try:
+            songs.append((folder, read_manifest(folder)))
+        except MediaError:
+            log.warning("Skipping invalid library folder: %s", folder)
+    songs.sort(key=lambda fm: fm[1].get("saved", ""), reverse=True)
+    return songs
+
+
+def load_session(folder: Path, temp_dir: str, progress
+                 ) -> tuple[dict, list[tuple[str, np.ndarray]], int,
+                            str | None]:
+    """
+    Read a saved song back: (manifest, [(stem id, array)], samplerate,
+    source_wav). The source is copied to a float WAV in `temp_dir`, so
+    re-separating it later never depends on the library folder (which the
+    user may delete while the song is open).
+    """
+    folder = Path(folder)
+    m = read_manifest(folder)
+    sr0 = int(m.get("samplerate") or 44100)
+    tracks = []
+    for i, s in enumerate(m["stems"]):
+        data, sr = _read_audio(folder / s["file"], float(s.get("scale", 1.0)))
+        if sr != sr0:
+            raise MediaError(L("err_session_bad", name=folder.name))
+        tracks.append((s["id"], data))
+    source_wav = None
+    src = m.get("source")
+    if src and (folder / src["file"]).is_file():
+        data, sr = _read_audio(folder / src["file"],
+                               float(src.get("scale", 1.0)))
+        source_wav = os.path.join(temp_dir,
+                                  f"session_src_{uuid.uuid4().hex[:12]}.wav")
+        sf.write(source_wav, data, sr, subtype="FLOAT")
+    return m, tracks, sr0, source_wav
+
+
+def send_to_recycle_bin(path: Path) -> None:
+    """Delete a song folder through the Windows Recycle Bin, so a song
+    removed by mistake can still come back; plain delete elsewhere."""
+    if sys.platform != "win32":
+        shutil.rmtree(path)
+        return
+    import ctypes
+    from ctypes import wintypes
+
+    class _SHFILEOPSTRUCTW(ctypes.Structure):
+        _fields_ = [("hwnd", wintypes.HWND), ("wFunc", wintypes.UINT),
+                    ("pFrom", wintypes.LPCWSTR), ("pTo", wintypes.LPCWSTR),
+                    ("fFlags", ctypes.c_ushort),
+                    ("fAnyOperationsAborted", wintypes.BOOL),
+                    ("hNameMappings", ctypes.c_void_p),
+                    ("lpszProgressTitle", wintypes.LPCWSTR)]
+
+    FO_DELETE = 3
+    flags = 0x40 | 0x10 | 0x400 | 0x4   # ALLOWUNDO|NOCONFIRMATION|NOERRORUI|SILENT
+    # pFrom is a double-NUL-terminated list
+    op = _SHFILEOPSTRUCTW(None, FO_DELETE, str(Path(path).resolve()) + "\0",
+                          None, flags, False, None, None)
+    rc = ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))
+    if rc != 0 or op.fAnyOperationsAborted or Path(path).exists():
+        raise OSError(f"SHFileOperationW failed (0x{rc:x})")
+
+
+# Playback speeds offered for practice (fraction of the original tempo).
+# 50% and 60% were dropped after use: too slow to be practical to play
+# along. ffmpeg's atempo would go down to 0.5 in a single stage anyway.
+SPEED_STEPS = (0.7, 0.8, 0.9, 1.0)
+_STRETCH_BLOCK = 1 << 16          # frames per pipe write
+
+
+def time_stretch_tracks(arrays: list[np.ndarray], samplerate: int,
+                        speed: float) -> list[np.ndarray]:
+    """
+    Change the tempo of every track by `speed` (SPEED_STEPS) keeping the
+    pitch, through ffmpeg's `atempo` (WSOLA, which keeps the attacks of
+    drums intact better than a phase vocoder).
+
+    All tracks go through ONE multichannel stream on purpose: atempo picks
+    its splice points from a downmix of every channel, so the stems get
+    identical splices and stay phase-locked to each other. Stretched one
+    by one, each stem would splice somewhere else and their sum would smear.
+
+    Input: float32 (n, 2) arrays of equal length. Output: views of one
+    (round(n / speed), 2 * len(arrays)) buffer, one stereo pair per track.
+    Audio is streamed through pipes, so memory stays at the output size.
+    """
+    ffmpeg = find_ffmpeg()
+    if not ffmpeg:
+        raise MediaError(L("err_speed_ffmpeg"))
+    n = len(arrays[0])
+    ch = 2 * len(arrays)
+    n_out = int(round(n / speed))
+    out = np.zeros((n_out, ch), dtype=np.float32)
+    cmd = [ffmpeg, "-v", "error", "-f", "f32le", "-ar", str(samplerate),
+           "-ac", str(ch), "-i", "pipe:0", "-af", f"atempo={speed:.4f}",
+           "-f", "f32le", "pipe:1"]
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            creationflags=getattr(subprocess,
+                                                  "CREATE_NO_WINDOW", 0))
+    err: list[bytes] = []
+
+    def feed() -> None:
+        try:
+            for i in range(0, n, _STRETCH_BLOCK):
+                block = np.concatenate(
+                    [a[i:i + _STRETCH_BLOCK] for a in arrays], axis=1)
+                proc.stdin.write(block.astype(np.float32, copy=False)
+                                 .tobytes())
+        except (BrokenPipeError, OSError):
+            pass                      # ffmpeg died: reported below
+        finally:
+            try:
+                proc.stdin.close()
+            except OSError:
+                pass
+
+    def drain_err() -> None:
+        err.append(proc.stderr.read())
+
+    threads = [threading.Thread(target=feed, daemon=True),
+               threading.Thread(target=drain_err, daemon=True)]
+    for t in threads:
+        t.start()
+    # read straight into the output buffer; whole frames, no reassembly
+    buf = memoryview(out).cast("B")
+    got = 0
+    while got < len(buf):
+        k = proc.stdout.readinto(buf[got:got + (1 << 22)])
+        if not k:
+            break
+        got += k
+    while proc.stdout.read(1 << 20):  # atempo may overshoot by a few frames
+        pass
+    proc.wait()
+    for t in threads:
+        t.join()
+    if proc.returncode != 0:
+        msg = (err[0] if err else b"").decode("utf-8", "replace")
+        raise MediaError(L("err_speed", err=msg[-400:]))
+    return [out[:, 2 * k:2 * k + 2] for k in range(len(arrays))]
+
+
+# ---------------------------------------------------------------------------
 # Musical analysis: key & BPM detection
 # ---------------------------------------------------------------------------
 
@@ -1323,6 +1757,56 @@ def _parabolic_peak(y: np.ndarray, i: int) -> float:
     return i + float(np.clip(0.5 * (a - c) / den, -0.5, 0.5))
 
 
+_LAG_WINDOW_S = 90.0     # original-time excerpt used to measure the lag
+_LAG_MAX_S = 0.060       # search range, either side
+_LAG_HOP = 128           # 2.9 ms envelope frames (sub-frame by parabola)
+
+
+def measure_stretch_lag(orig: np.ndarray, stretched: np.ndarray, sr: int,
+                        speed: float) -> float:
+    """
+    Where the time-stretched audio really is, relative to t / speed.
+
+    atempo does not hand events back exactly at t / speed: its splices
+    move them by ~2..16 ms, and HOW much depends on the material (the
+    splice search runs on the content, so sustained tones and drums pull
+    it differently — measured on 7 synthetic mixes). A fixed constant
+    cannot fix that, so the offset is measured on every stretch: the
+    onset envelope of the original, mapped to the stretched timeline, is
+    cross-correlated with the envelope of the stretched audio itself.
+
+    Returns seconds (positive = the stretched audio is late); 0.0 when the
+    excerpt has no clear onsets to lock to (silence, pads).
+    """
+    n_o = min(len(orig), int(_LAG_WINDOW_S * sr))
+    n_s = min(len(stretched), int(round(n_o / speed)))
+    e_o = _onset_envelope(orig[:n_o], sr, hop=_LAG_HOP)
+    e_s = _onset_envelope(stretched[:n_s], sr, hop=_LAG_HOP)
+    if len(e_o) < 8 or len(e_s) < 8:
+        return 0.0
+    # stretched frame k is centred on sample k*hop + n_fft/2, which shows
+    # original sample (k*hop + n_fft/2) * speed; map through the frame
+    # CENTRES — scaling the frame index alone would also scale the half
+    # window and bias the lag by n_fft/2 * (1/speed - 1)
+    half = _ONSET_NFFT / 2.0
+    src = ((np.arange(len(e_s)) * _LAG_HOP + half) * speed - half) / _LAG_HOP
+    e_m = np.interp(src, np.arange(len(e_o)), e_o)
+    e_m = e_m - e_m.mean()
+    e_s = e_s - e_s.mean()
+    max_lag = int(round(_LAG_MAX_S * sr / _LAG_HOP))
+    if len(e_s) <= 2 * max_lag + 8:
+        return 0.0
+    core = slice(max_lag, len(e_s) - max_lag)
+    ref = e_s[core]
+    xc = np.array([float(np.dot(ref, e_m[max_lag - L:len(e_s) - max_lag - L]))
+                   for L in range(-max_lag, max_lag + 1)])
+    i = int(np.argmax(xc))
+    norm = float(np.linalg.norm(ref) * np.linalg.norm(e_m[core])) or 1.0
+    if xc[i] / norm < 0.3:                 # nothing to lock onto
+        return 0.0
+    return (_parabolic_peak(xc, i) - max_lag) * _LAG_HOP / sr
+
+
 def scale_beat_grid(beats: np.ndarray, mult: float) -> np.ndarray:
     """
     Same grid at another metrical level, keeping the phase locked:
@@ -1377,7 +1861,7 @@ def _pick_beat_source(audible: list, n_frames: int) -> np.ndarray | None:
     Returns a mono, post-fader buffer.
     """
     def mono_of(track) -> np.ndarray:
-        return track.data.mean(axis=1) * track.gain
+        return track.orig.mean(axis=1) * track.gain   # original speed
 
     def loud(x: np.ndarray) -> bool:
         return float(np.sqrt(np.mean(x * x))) > 1e-4
@@ -1846,6 +2330,225 @@ class ContactDialog(ctk.CTkToplevel):
         self.note.configure(text=L("contact_copied"))
 
 
+class LibraryDialog(ctk.CTkToplevel):
+    """
+    The song library: every song saved with "Save to library", newest
+    first, reopened in one click — stems, key, BPM, beat grid, mixer and
+    speed as they were left, offline, with no separation to wait for.
+    (Asked for by a drummer building an archive of songs for his lessons.)
+    """
+
+    def __init__(self, app: "IsolateApp"):
+        super().__init__(app, fg_color=COL_BG)
+        self.app = app
+        self.title(L("lib_title"))
+        self.geometry("660x540")
+        self.minsize(540, 380)
+        self.transient(app)
+        try:
+            base = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))
+            if (base / "isolate.ico").exists():
+                self.after(200, lambda: self.iconbitmap(
+                    str(base / "isolate.ico")))
+        except Exception:
+            pass
+
+        card = ctk.CTkFrame(self, corner_radius=22, fg_color=COL_PANEL,
+                            border_width=1, border_color=COL_BORDER)
+        card.pack(fill="both", expand=True, padx=14, pady=14)
+        card.grid_columnconfigure(0, weight=1)
+        card.grid_rowconfigure(2, weight=1)
+
+        head = ctk.CTkFrame(card, fg_color="transparent")
+        head.grid(row=0, column=0, sticky="ew", padx=22, pady=(18, 2))
+        head.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(head, text=L("lib_title"), text_color=COL_TEXT,
+                     font=ctk.CTkFont(family=UI_FAMILY, size=22,
+                                      weight="bold")
+                     ).grid(row=0, column=0, sticky="w")
+        self.count_label = ctk.CTkLabel(
+            head, text="", text_color=COL_TEXT_DIM,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12))
+        self.count_label.grid(row=0, column=1, sticky="w", padx=(12, 0),
+                              pady=(6, 0))
+        # placeholder text only shows on a CTkEntry without textvariable,
+        # so the filter reads the entry on every key release instead
+        self.search = ctk.CTkEntry(
+            head, placeholder_text=L("lib_search"), width=210, height=32,
+            corner_radius=999, fg_color=COL_ELEV, border_width=1,
+            border_color=BTN_GHOST_BRD, text_color=COL_TEXT,
+            placeholder_text_color=COL_TEXT_DIM,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12))
+        self.search.grid(row=0, column=2, sticky="e")
+        self.search.bind("<KeyRelease>", lambda e: self._render())
+
+        where = ctk.CTkFrame(card, fg_color="transparent")
+        where.grid(row=1, column=0, sticky="ew", padx=22, pady=(0, 8))
+        where.grid_columnconfigure(0, weight=1)
+        self.path_label = ctk.CTkLabel(
+            where, text="", anchor="w", text_color=COL_TEXT_DIM,
+            font=ctk.CTkFont(family=MONO_FAMILY, size=11))
+        self.path_label.grid(row=0, column=0, sticky="w")
+        for col, (key, cmd) in enumerate((("lib_open_folder", self._open_folder),
+                                          ("lib_change_folder",
+                                           self._change_folder)), start=1):
+            ctk.CTkButton(where, text=L(key), height=26, width=110,
+                          corner_radius=999, fg_color=BTN_GHOST_BG,
+                          text_color=COL_TEXT_2, border_width=1,
+                          border_color=BTN_GHOST_BRD,
+                          hover_color=BTN_GHOST_HOV,
+                          font=ctk.CTkFont(family=UI_FAMILY, size=11),
+                          command=cmd).grid(row=0, column=col, padx=(6, 0))
+
+        self.list = ctk.CTkScrollableFrame(card, corner_radius=16,
+                                           fg_color="transparent")
+        self.list.grid(row=2, column=0, sticky="nsew", padx=10)
+        self.list.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkButton(card, text=L("lib_close"), width=90, height=32,
+                      corner_radius=999, fg_color=BTN_GHOST_BG,
+                      text_color=COL_TEXT_2, border_width=1,
+                      border_color=BTN_GHOST_BRD, hover_color=BTN_GHOST_HOV,
+                      font=ctk.CTkFont(family=UI_FAMILY, size=12),
+                      command=self.destroy
+                      ).grid(row=3, column=0, padx=22, pady=(8, 16),
+                             sticky="e")
+
+        self._root_dir = library_dir()
+        self._songs: list[tuple[Path, dict]] = []
+        self._reload()
+
+        self.bind("<Escape>", lambda e: self.destroy())
+        self.update_idletasks()
+        x = app.winfo_rootx() + (app.winfo_width() - self.winfo_width()) // 2
+        y = app.winfo_rooty() + (app.winfo_height()
+                                 - self.winfo_height()) // 3
+        self.geometry(f"+{max(0, x)}+{max(0, y)}")
+        self.after(120, self.grab_set)          # modal once it is mapped
+
+    # -- content -----------------------------------------------------------
+
+    def _reload(self) -> None:
+        self._root_dir = library_dir()
+        path = str(self._root_dir)
+        if len(path) > 44:              # keep the tail, the meaningful part
+            path = "…" + path[-43:]
+        self.path_label.configure(text=path)
+        self._songs = list_library(self._root_dir)
+        self._render()
+
+    def _render(self) -> None:
+        for child in self.list.winfo_children():
+            child.destroy()
+        q = self.search.get().strip().lower()
+        songs = [(f, m) for f, m in self._songs
+                 if not q or q in str(m.get("title", f.name)).lower()]
+        n = len(self._songs)
+        self.count_label.configure(
+            text=L("lib_count_1") if n == 1 else L("lib_count", n=n))
+        if not songs:
+            ctk.CTkLabel(self.list,
+                         text=L("lib_no_match", q=q) if q else L("lib_empty"),
+                         text_color=COL_TEXT_DIM, justify="center",
+                         font=ctk.CTkFont(family=UI_FAMILY, size=13)
+                         ).grid(row=0, column=0, pady=40)
+            return
+        for i, (folder, m) in enumerate(songs):
+            self._song_row(i, folder, m)
+
+    def _song_row(self, i: int, folder: Path, m: dict) -> None:
+        row = ctk.CTkFrame(self.list, fg_color=COL_ELEV, corner_radius=18)
+        row.grid(row=i, column=0, sticky="ew", padx=4, pady=3)
+        row.grid_columnconfigure(0, weight=1)
+
+        title = str(m.get("title") or folder.name)
+        shown = title if len(title) <= 52 else title[:51] + "…"
+        name = ctk.CTkLabel(row, text=shown, anchor="w", text_color=COL_TEXT,
+                            font=ctk.CTkFont(family=UI_FAMILY, size=14,
+                                             weight="bold"))
+        name.grid(row=0, column=0, sticky="w", padx=(18, 8), pady=(8, 0))
+
+        mode = m.get("mode")
+        mode_txt = (_SPEC_TO_SHORT.get(mode) or f"{len(m['stems'])} stems"
+                    if mode else L("lib_mode_original"))
+        sr = m.get("samplerate") or 44100
+        dur = format_time(float(m.get("frames", 0)) / sr)
+        try:
+            saved = datetime.fromisoformat(m.get("saved", ""))
+            saved_txt = saved.strftime("%d/%m/%Y" if LANG == "pt"
+                                       else "%Y-%m-%d")
+        except ValueError:
+            saved_txt = ""
+        meta = ctk.CTkFrame(row, fg_color="transparent")
+        meta.grid(row=1, column=0, sticky="w", padx=(18, 8), pady=(0, 8))
+        # tema §5: amber belongs to Key / BPM
+        musical = " · ".join(t for t in (
+            key_short(m.get("key")),
+            f"{m['bpm']:.0f} BPM" if m.get("bpm") else None) if t)
+        info = "  ·  ".join(t for t in (mode_txt, dur, saved_txt) if t)
+        ctk.CTkLabel(meta, text=info + ("  ·" if musical else ""),
+                     text_color=COL_TEXT_2,
+                     font=ctk.CTkFont(family=UI_FAMILY, size=12)
+                     ).grid(row=0, column=0)
+        if musical:
+            ctk.CTkLabel(meta, text=musical, text_color=AMBER,
+                         font=ctk.CTkFont(family=MONO_FAMILY, size=12)
+                         ).grid(row=0, column=1, padx=(6, 0))
+
+        ctk.CTkButton(row, text=L("lib_open"), width=78, height=30,
+                      corner_radius=999, fg_color=BTN_PRI_BG,
+                      text_color=BTN_PRI_TX, hover_color=BTN_PRI_HOV,
+                      font=ctk.CTkFont(family=UI_FAMILY, size=12,
+                                       weight="bold"),
+                      command=lambda: self._open(folder)
+                      ).grid(row=0, column=1, rowspan=2, padx=(0, 6))
+        ctk.CTkButton(row, text="✕", width=30, height=30, corner_radius=15,
+                      fg_color=BTN_GHOST_BG, text_color=COL_TEXT_2,
+                      hover_color=BTN_GHOST_HOV,
+                      font=ctk.CTkFont(family=UI_FAMILY, size=12),
+                      command=lambda: self._delete(folder, title)
+                      ).grid(row=0, column=2, rowspan=2, padx=(0, 14))
+        for w in (row, name, meta):
+            w.bind("<Double-Button-1>", lambda e: self._open(folder))
+
+    # -- actions -----------------------------------------------------------
+
+    def _open(self, folder: Path) -> None:
+        self.destroy()
+        self.app._open_session(folder)
+
+    def _delete(self, folder: Path, title: str) -> None:
+        if not messagebox.askyesno(_APP_NAME, L("lib_delete_q", name=title),
+                                   parent=self):
+            return
+        try:
+            send_to_recycle_bin(folder)
+        except Exception as exc:
+            log.error("Delete failed:\n%s", traceback.format_exc())
+            messagebox.showerror(_APP_NAME, L("err_delete", err=exc),
+                                 parent=self)
+        if self.app._session_dir == folder:
+            self.app._session_dir = None    # next save makes a new entry
+        self._reload()
+
+    def _open_folder(self) -> None:
+        try:
+            self._root_dir.mkdir(parents=True, exist_ok=True)
+            os.startfile(str(self._root_dir))
+        except Exception as exc:
+            log.warning("Could not open the library folder: %s", exc)
+
+    def _change_folder(self) -> None:
+        start = self._root_dir if self._root_dir.is_dir() else Path.home()
+        path = filedialog.askdirectory(parent=self, initialdir=str(start),
+                                       title=L("lib_choose_folder"))
+        if not path:
+            return
+        _SETTINGS["library_dir"] = str(Path(path))
+        _save_settings(_SETTINGS)
+        self._reload()
+
+
 class MasterStrip(ctk.CTkFrame):
     """Vertical master bus strip — amber, always the leftmost channel."""
 
@@ -1965,6 +2668,10 @@ class IsolateApp(_Root):
         self._strip_compact = False
         self._beats_base: np.ndarray | None = None   # detected grid, 1x
         self._metro_mult = 1.0                       # ÷2 / 1x / ×2
+        self._speed_lag = 0.0       # measured offset of the stretched audio
+        self._mode_spec: str | None = None    # separation run, None = original
+        self._source_url: str | None = None   # YouTube URL of the material
+        self._session_dir: Path | None = None  # library folder it lives in
 
         self._build_ui()
         self._populate_devices()
@@ -2024,6 +2731,16 @@ class IsolateApp(_Root):
             font=ctk.CTkFont(family=UI_FAMILY, size=13, weight="bold"),
             command=self._on_download)
         self.download_btn.grid(row=0, column=1)
+        # the library is a third source of material, next to the file drop
+        # and YouTube: songs already separated, reopened offline
+        self.library_btn = ctk.CTkButton(
+            url_frame, text=L("btn_library"), width=104, height=36,
+            corner_radius=999, fg_color=BTN_GHOST_BG, text_color=COL_TEXT,
+            border_width=1, border_color=BTN_GHOST_BRD,
+            hover_color=BTN_GHOST_HOV,
+            font=ctk.CTkFont(family=UI_FAMILY, size=13, weight="bold"),
+            command=self._on_library)
+        self.library_btn.grid(row=0, column=2, padx=(6, 0))
 
         # Device selector + transport
         row2 = ctk.CTkFrame(top, fg_color="transparent")
@@ -2035,7 +2752,7 @@ class IsolateApp(_Root):
                      font=ctk.CTkFont(family=UI_FAMILY, size=12)
                      ).grid(row=0, column=0, padx=(0, 6))
         self.device_menu = ctk.CTkOptionMenu(
-            row2, values=[L("device_default")], width=300, corner_radius=999,
+            row2, values=[L("device_default")], width=240, corner_radius=999,
             dynamic_resizing=False,     # long device names must NOT widen
                                         # the menu and push the transport
                                         # buttons out of the window
@@ -2070,6 +2787,34 @@ class IsolateApp(_Root):
             font=ctk.CTkFont(family=UI_FAMILY, size=14),
             command=self._on_stop)
         self.stop_btn.grid(row=0, column=4, padx=3)
+
+        # practice speed (pitch kept): lives with the transport because it
+        # changes how the music plays, not how it is mixed
+        speed_box = ctk.CTkFrame(row2, fg_color="transparent")
+        speed_box.grid(row=0, column=5, sticky="w", padx=(14, 6))
+        # collapsed by default: one pill with the current speed; the six
+        # options unfold beside it on click and fold back once one is picked
+        self._speed_open = False
+        self.speed_btn = ctk.CTkButton(
+            speed_box, text="", width=150, height=32, corner_radius=999,
+            fg_color=BTN_GHOST_BG, text_color=COL_TEXT_2,
+            border_width=1, border_color=BTN_GHOST_BRD,
+            hover_color=BTN_GHOST_HOV,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"),
+            command=self._toggle_speed_menu)
+        self.speed_btn.grid(row=0, column=0, padx=(0, 6))
+        self.speed_picker = ctk.CTkSegmentedButton(
+            speed_box, values=[f"{round(s * 100)}%" for s in SPEED_STEPS],
+            corner_radius=999, fg_color=COL_TROUGH,
+            selected_color=BTN_GHOST_BG, selected_hover_color=BTN_GHOST_HOV,
+            unselected_color=COL_TROUGH, unselected_hover_color="#1a1a1e",
+            text_color=COL_TEXT,
+            font=ctk.CTkFont(family=UI_FAMILY, size=12, weight="bold"),
+            command=self._on_speed)
+        self.speed_picker.set("100%")
+        self.speed_picker.grid(row=0, column=1)
+        self.speed_picker.grid_remove()
+        self._refresh_speed_btn(1.0)
 
         self.time_label = ctk.CTkLabel(row2, text="00:00 / 00:00",
                                        width=110, anchor="e",
@@ -2133,8 +2878,18 @@ class IsolateApp(_Root):
             hover_color=BTN_PRI_HOV,
             font=ctk.CTkFont(family=UI_FAMILY, size=15, weight="bold"),
             command=self._on_separate)
-        self.separate_btn.grid(row=0, column=3, rowspan=2,
-                               padx=24, pady=8, sticky="e")
+        self.separate_btn.grid(row=0, column=4, rowspan=2,
+                               padx=(0, 24), pady=8, sticky="e")
+        # what the separation produced goes to the library from right here
+        self.save_lib_btn = ctk.CTkButton(
+            cfg, text=L("btn_save_lib"), height=42, width=170,
+            corner_radius=999, fg_color=BTN_GHOST_BG, text_color=COL_TEXT,
+            border_width=1, border_color=BTN_GHOST_BRD,
+            hover_color=BTN_GHOST_HOV,
+            font=ctk.CTkFont(family=UI_FAMILY, size=13, weight="bold"),
+            command=self._on_save_session)
+        self.save_lib_btn.grid(row=0, column=3, rowspan=2,
+                               padx=(0, 10), pady=8, sticky="e")
 
         # ---------- Mixer (with the musical analysis in its header) ----------
         mix_wrap = ctk.CTkFrame(self, corner_radius=22, fg_color=COL_PANEL,
@@ -2544,6 +3299,7 @@ class IsolateApp(_Root):
         data, sr, wav_path = decode_to_array(path, self.temp_dir)
         self.source_wav = wav_path
         self.source_title = Path(path).stem
+        self._new_material(None)
         self.after(0, lambda: self._install_tracks(
             [(L("track_original"), data)], sr,
             L("st_loaded", name=Path(path).name, sr=sr,
@@ -2565,6 +3321,7 @@ class IsolateApp(_Root):
         data, sr = sf.read(wav_path, dtype="float32", always_2d=True)
         self.source_wav = wav_path
         self.source_title = title
+        self._new_material(url)
         self.after(0, lambda: self._install_tracks(
             [(L("track_original"), data)], sr,
             L("st_loaded", name=title, sr=sr,
@@ -2587,8 +3344,123 @@ class IsolateApp(_Root):
         stems = separate_stems(self.source_wav, model_spec, stem_order,
                                self.temp_dir, self._status_async)
         sr = 44100    # Spleeter models always render at 44.1 kHz
+        # same song, new stems: a library entry it came from stays its home
+        self._mode_spec = model_spec
         self.after(0, lambda: self._install_tracks(
             stems, sr, L("st_sep_done", n=len(stems))))
+
+    def _new_material(self, url: str | None) -> None:
+        """A different song came in: it is not separated and not in the
+        library yet."""
+        self._mode_spec = None
+        self._source_url = url
+        self._session_dir = None
+
+    # ------------------------------------------------------------- library --
+
+    def _on_library(self) -> None:
+        if self._busy:
+            return
+        win = getattr(self, "_library_win", None)
+        try:
+            if win is not None and win.winfo_exists():
+                win.focus_force()
+                return
+        except Exception:
+            pass
+        self._library_win = LibraryDialog(self)
+
+    def _on_save_session(self) -> None:
+        if self._busy:
+            return
+        if not self.engine.tracks:
+            self._set_status(L("st_nothing_save"))
+            return
+        root = library_dir()
+        if self._session_dir is not None and self._session_dir.parent == root:
+            target = self._session_dir          # opened/saved before: update
+        else:
+            target = root / safe_folder_name(self.source_title or _APP_NAME)
+            if target.exists():
+                answer = messagebox.askyesnocancel(
+                    _APP_NAME, L("lib_exists", name=target.name))
+                if answer is None:
+                    return
+                if not answer:
+                    target = unique_folder(target)
+        self._run_async(self._task_save_session, target,
+                        self._session_snapshot())
+
+    def _session_snapshot(self) -> dict:
+        """Everything a saved song needs, read on the UI thread so it is
+        one consistent moment of the mixer (the arrays are never mutated
+        in place, so the worker can write them while the user plays on)."""
+        e = self.engine
+        beats = self._beats_base
+        return {
+            "title": self.source_title or _APP_NAME,
+            "tracks": [(_LABEL_TO_STEM.get(t.name, t.name), t.orig)
+                       for t in e.tracks],
+            "samplerate": e.samplerate,
+            "source_wav": self.source_wav,
+            "state": {
+                "mode": self._mode_spec,
+                "source_url": self._source_url,
+                "key": self._key_last,
+                "bpm": self._bpm_global,
+                "beats": (None if beats is None
+                          else [round(float(b), 5) for b in beats]),
+                "mixer": {
+                    "master": e.master_gain,
+                    "tracks": [{"gain": t.gain, "mute": t.mute,
+                                "solo": t.solo} for t in e.tracks],
+                },
+                "speed": e.speed,
+                "metronome": {"on": bool(e.metronome_on),
+                              "gain": e.metronome_gain,
+                              "mult": self._metro_mult},
+            },
+        }
+
+    def _task_save_session(self, target: Path, snap: dict) -> None:
+        try:
+            folder = save_session(target, snap["title"], snap["tracks"],
+                                  snap["samplerate"], snap["source_wav"],
+                                  snap["state"], self._status_async)
+        except MediaError:
+            raise
+        except Exception as exc:
+            log.error("Save failed:\n%s", traceback.format_exc())
+            raise MediaError(L("err_save", err=exc)) from exc
+        tracks = self.engine.tracks
+
+        def done() -> None:
+            if self.engine.tracks is tracks:   # still the song that was saved
+                self._session_dir = folder
+        self.after(0, done)
+        self._status_async(L("st_saved", name=folder.name))
+
+    def _open_session(self, folder: Path) -> None:
+        if self._busy:
+            return
+        self._run_async(self._task_open_session, Path(folder))
+
+    def _task_open_session(self, folder: Path) -> None:
+        self._status_async(L("st_opening", name=folder.name))
+        m, stems, sr, source_wav = load_session(folder, self.temp_dir,
+                                                self._status_async)
+        named = [(stem_label(sid), data) for sid, data in stems]
+
+        def install() -> None:
+            self.source_wav = source_wav
+            self.source_title = str(m.get("title") or folder.name)
+            self._mode_spec = m.get("mode")
+            self._source_url = m.get("source_url")
+            self._session_dir = folder
+            self._install_tracks(named, sr,
+                                 L("st_opened", name=self.source_title,
+                                   n=len(named)), session=m)
+        self.after(0, install)
 
     # -------------------------------------------------------------- export --
 
@@ -2617,8 +3489,10 @@ class IsolateApp(_Root):
         export_mix(mix, self.engine.samplerate, out_path, fmt,
                    self.temp_dir)
         # companion click track (always WAV, full click level): the same
-        # timeline as the mix, so it drops into any DAW next to it
-        click = self.engine.click_track
+        # timeline as the mix — original speed, like the mix — so it drops
+        # into any DAW next to it
+        click, _ = self._click_for(self._beats_base, 1.0,
+                                   self.engine.base_frames)
         if click is not None:
             stem = Path(out_path).stem
             base = stem[:-4] if stem.endswith("_mix") else stem
@@ -2635,16 +3509,101 @@ class IsolateApp(_Root):
     # ------------------------------------------------------------ mixer UI --
 
     def _install_tracks(self, named_arrays: list[tuple[str, np.ndarray]],
-                        samplerate: int, status: str) -> None:
+                        samplerate: int, status: str,
+                        session: dict | None = None) -> None:
+        """Put new material in the mixer. `session` is the manifest of a
+        song reopened from the library: its mixer, analysis, metronome and
+        speed come back as they were saved."""
         self.engine.set_tracks(named_arrays, samplerate)
         self._beats_base = None          # new material: stale beat grid
-        # master strip stays fixed first; stem channels rebuild after it,
-        # in whichever layout (rows / vertical strips) is active
-        self._populate_mixer()
+        self._bpm_global = None
+        self._speed_lag = 0.0
+        self._sync_speed_picker()        # new material plays at 100%
+        if session is not None:
+            self._restore_mixer(session)
+            # the master widget reads the gain only when built: rebuild it too
+            self._build_mixer_body()
+        else:
+            # master strip stays fixed first; stem channels rebuild after
+            # it, in whichever layout (rows / vertical strips) is active
+            self._populate_mixer()
         self.timeline.set(0.0)
         self._set_status(status)
         self._key_last = None            # new material: stale key
-        self._start_analysis(refresh_key=True)
+        if session is None or not self._restore_analysis(session):
+            self._start_analysis(refresh_key=True)
+        if session is not None:
+            self._restore_speed(float(session.get("speed") or 1.0),
+                                self.engine.tracks)
+
+    def _restore_mixer(self, m: dict) -> None:
+        """Faders, mute/solo, master, metronome level and the separation
+        mode of a saved song (before the mixer widgets are built, which
+        read their state from the Track objects)."""
+        mixer = m.get("mixer") or {}
+        try:
+            self.engine.master_gain = float(mixer.get("master", 1.0))
+            for t, s in zip(self.engine.tracks, mixer.get("tracks") or []):
+                t.gain = float(s.get("gain", 1.0))
+                t.mute = bool(s.get("mute", False))
+                t.solo = bool(s.get("solo", False))
+        except (TypeError, ValueError, AttributeError):
+            log.warning("Saved mixer state ignored (malformed)")
+        metro = m.get("metronome") or {}
+        try:
+            gain = float(metro.get("gain", self.engine.metronome_gain))
+            self.engine.metronome_gain = gain
+            self.metro_slider.set(gain * 100.0)
+            mult = float(metro.get("mult", 1.0))
+            label = {0.5: "÷2", 1.0: "1×", 2.0: "×2"}.get(mult, "1×")
+            self._metro_mult = {"÷2": 0.5, "1×": 1.0, "×2": 2.0}[label]
+            self.metro_mult_btn.set(label)
+        except (TypeError, ValueError, AttributeError):
+            log.warning("Saved metronome state ignored (malformed)")
+        short = _SPEC_TO_SHORT.get(m.get("mode"))
+        if short:
+            self.stem_var.set(short)
+            self._on_stem_mode(short)
+
+    def _restore_analysis(self, m: dict) -> bool:
+        """Key, BPM and beat grid saved with the song: the metronome is
+        ready at once, with the very grid the user practised with. False
+        when the song was saved before its analysis finished."""
+        beats = m.get("beats")
+        if not beats:
+            return False
+        try:
+            base = np.asarray(beats, dtype=np.float64)
+            bpm = float(m["bpm"]) if m.get("bpm") else None
+        except (TypeError, ValueError):
+            return False
+        key = m.get("key") or None
+        self._key_last = key
+        self._bpm_global = bpm
+        self._beats_base = base
+        self.engine.set_click_track(*self._click_for(
+            base, self.engine.speed, self.engine.n_frames))
+        self.engine.metronome_on = bool((m.get("metronome") or {}).get("on"))
+        self.key_label.configure(text=key_short(key) or "—",
+                                 text_color=AMBER if key else AMBER_DIM)
+        self.bpm_label.configure(text=self._bpm_text(),
+                                 text_color=AMBER if bpm else AMBER_DIM)
+        self._refresh_metro_button()
+        return True
+
+    def _restore_speed(self, speed: float, tracks: list[Track]) -> None:
+        """Re-apply the practice speed a song was saved at, once the
+        worker that opened it has released the busy state."""
+        if self.engine.tracks is not tracks or abs(speed - 1.0) < 1e-6:
+            return
+        if not any(abs(speed - s) < 1e-6 for s in SPEED_STEPS):
+            return
+        if self._busy:
+            self.after(100, lambda: self._restore_speed(speed, tracks))
+            return
+        value = f"{round(speed * 100)}%"
+        self.speed_picker.set(value)
+        self._on_speed(value)
 
     # ------------------------------------------------------ music analysis --
 
@@ -2676,9 +3635,12 @@ class IsolateApp(_Root):
         self.bpm_label.configure(text="…", text_color=AMBER_DIM)
         self._refresh_metro_button()
 
+        # analysis always runs on the ORIGINAL-speed audio; the grid is
+        # mapped to the playback speed when the click is built
         sr = self.engine.samplerate
-        n = self.engine.n_frames
-        tracks = list(self.engine.tracks)
+        n = self.engine.base_frames
+        track_set = self.engine.tracks       # identity: was it replaced?
+        tracks = list(track_set)
         any_solo = any(t.solo for t in tracks)
         audible = [t for t in tracks
                    if not t.mute and (not any_solo or t.solo)
@@ -2691,7 +3653,7 @@ class IsolateApp(_Root):
                 # audible mix (post-fader, pre-master)
                 mono = np.zeros(n, dtype=np.float32)
                 for t in audible:
-                    mono += t.data.mean(axis=1) * t.gain
+                    mono += t.orig.mean(axis=1) * t.gain
                 # beat source: prefer the drums stem when audible and
                 # non-silent — percussive material carries the pulse
                 # (Gkiokas 2012; Chiu 2021), while predominant vocals and
@@ -2701,33 +3663,37 @@ class IsolateApp(_Root):
                 if beat_src is None:
                     beat_src = mono
                 res = detect_beats(beat_src, sr)
-                bpm, click, beat_times = None, None, None
+                bpm, beat_times = None, None
                 if res is not None:
                     bpm, beat_times = res
-                    self._beats_base = beat_times
-                    click = render_click_track(
-                        scale_beat_grid(beat_times, self._metro_mult), n, sr)
                 key = self._key_last
                 if refresh_key:
                     # key: whole track, FULL mix, faders ignored — the
                     # song's key does not change when a stem is muted
                     key_mono = np.zeros(n, dtype=np.float32)
                     for t in tracks:
-                        key_mono += t.data.mean(axis=1)
+                        key_mono += t.orig.mean(axis=1)
                     key = detect_key(key_mono, sr)
                     self._key_last = key
-                self._bpm_global = bpm
-                self.engine.set_click_track(click, beat_times)
                 key_txt = key_short(key) or "—"     # tema §3: Am, C, F#m...
-                bpm_txt = f"{bpm:.0f}" if bpm else "—"
-                self.after(0, lambda: (
+
+                def apply() -> None:
+                    # on the UI thread: the click is rendered for the speed
+                    # in effect NOW (a speed change may have landed meanwhile)
+                    if self.engine.tracks is not track_set:
+                        return                      # material replaced
+                    self._bpm_global = bpm
+                    self._beats_base = beat_times
+                    self.engine.set_click_track(
+                        *self._click_for(beat_times, self.engine.speed,
+                                         self.engine.n_frames))
                     self.key_label.configure(
-                        text=key_txt,
-                        text_color=AMBER if key else AMBER_DIM),
+                        text=key_txt, text_color=AMBER if key else AMBER_DIM)
                     self.bpm_label.configure(
-                        text=bpm_txt,
-                        text_color=AMBER if bpm else AMBER_DIM),
-                    self._refresh_metro_button()))
+                        text=self._bpm_text(),
+                        text_color=AMBER if bpm else AMBER_DIM)
+                    self._refresh_metro_button()
+                self.after(0, apply)
                 if key or bpm:
                     self._status_async(L("st_analysis", key=key or "?",
                                          bpm=bpm or "?"))
@@ -2779,12 +3745,134 @@ class IsolateApp(_Root):
         if base is None or self.engine.n_frames <= 0:
             return
         was_on = self.engine.metronome_on
-        click = render_click_track(scale_beat_grid(base, self._metro_mult),
-                                   self.engine.n_frames,
-                                   self.engine.samplerate)
-        self.engine.set_click_track(click, base)   # BPM chip keeps the beat
+        self.engine.set_click_track(*self._click_for(
+            base, self.engine.speed, self.engine.n_frames))
         self.engine.metronome_on = was_on
         self._refresh_metro_button()
+
+    def _click_for(self, base: np.ndarray | None, speed: float,
+                   n_frames: int) -> tuple[np.ndarray | None,
+                                           np.ndarray | None]:
+        """Click buffer + beat grid in PLAYBACK time: the detected grid
+        (original time) at the chosen metrical level, divided by the speed.
+        The click itself is re-rendered, never stretched, so it stays dry,
+        and it is shifted by the lag measured on the stretched audio (see
+        measure_stretch_lag). The returned grid keeps the beat (not the
+        ÷2/×2 level), so the BPM chip shows the song's own pulse."""
+        if base is None or n_frames <= 0:
+            return None, None
+        lag = 0.0 if abs(speed - 1.0) < 1e-6 else self._speed_lag
+        click = render_click_track(
+            scale_beat_grid(base, self._metro_mult) / speed + lag, n_frames,
+            self.engine.samplerate)
+        return click, base / speed + lag
+
+    def _bpm_text(self) -> str:
+        """Global BPM as heard at the current playback speed."""
+        if not self._bpm_global:
+            return "—"
+        return f"{self._bpm_global * self.engine.speed:.0f}"
+
+    # -------------------------------------------------------------- speed --
+
+    def _on_speed(self, value: str) -> None:
+        """Practice speed (70..100%): re-render the stems time-stretched,
+        pitch unchanged, off the UI thread."""
+        speed = int(value.rstrip("%")) / 100.0
+        self._set_speed_menu(False)
+        if not self.engine.tracks or self._busy:
+            self._sync_speed_picker()
+            if not self.engine.tracks:
+                self._set_status(L("st_load_first"))
+            return
+        if abs(speed - self.engine.speed) < 1e-6:
+            return
+        self._refresh_speed_btn(speed)   # shows the pick while it renders
+        if not self.engine.playing and abs(self.engine.speed - 1.0) > 1e-6:
+            # stopped: drop the old stretched buffers BEFORE rendering the
+            # new ones (6 stems at 70% are ~0.6 GB for a 3.5 min song, and
+            # holding two speeds at once hurts on 4 GB machines)
+            e = self.engine
+            self._speed_lag = 0.0
+            e.set_playback_speed(e.tracks, 1.0, [t.orig for t in e.tracks],
+                                 *self._click_for(self._beats_base, 1.0,
+                                                  e.base_frames))
+        self._run_async(self._task_speed, speed)
+
+    def _task_speed(self, speed: float) -> None:
+        tracks = self.engine.tracks
+        sr = self.engine.samplerate
+        pct = round(speed * 100)
+        lag = 0.0
+        if abs(speed - 1.0) < 1e-6:
+            arrays = [t.orig for t in tracks]
+        else:
+            self._status_async(L("st_speed_working", pct=pct))
+            arrays = time_stretch_tracks([t.orig for t in tracks], sr, speed)
+            # where atempo actually put the hits, so the click follows them
+            orig_mono = sum(t.orig.mean(axis=1) for t in tracks)
+            str_mono = sum(a.mean(axis=1) for a in arrays)
+            lag = measure_stretch_lag(orig_mono, str_mono, sr, speed)
+            log.info("speed %.2f: stretch lag %+.1f ms", speed, lag * 1000)
+        self.after(0, lambda: self._apply_speed(tracks, speed, arrays, lag))
+
+    def _apply_speed(self, tracks: list[Track], speed: float,
+                     arrays: list[np.ndarray], lag: float) -> None:
+        if self.engine.tracks is not tracks:
+            return                      # new material arrived meanwhile
+        was_on = self.engine.metronome_on
+        self._speed_lag = lag
+        click, beats = self._click_for(self._beats_base, speed,
+                                       len(arrays[0]))
+        if not self.engine.set_playback_speed(tracks, speed, arrays,
+                                              click, beats):
+            return                      # new material arrived meanwhile
+        self.engine.metronome_on = was_on and click is not None
+        self._refresh_metro_button()
+        self._bpm_live_txt = None
+        pct = round(speed * 100)
+        if self._bpm_global and not self._analyzing:
+            self.bpm_label.configure(text=self._bpm_text(), text_color=AMBER)
+        if abs(speed - 1.0) < 1e-6:
+            self._set_status(L("st_speed_normal"))
+        elif self._bpm_global:
+            self._set_status(L("st_speed_done_bpm", pct=pct,
+                               bpm0=f"{self._bpm_global:.0f}",
+                               bpm=self._bpm_text()))
+        else:
+            self._set_status(L("st_speed_done", pct=pct))
+
+    def _sync_speed_picker(self) -> None:
+        self.speed_picker.set(f"{round(self.engine.speed * 100)}%")
+        self._refresh_speed_btn(self.engine.speed)
+
+    def _toggle_speed_menu(self) -> None:
+        self._set_speed_menu(not self._speed_open)
+
+    def _set_speed_menu(self, open_: bool) -> None:
+        """Unfold / fold the speed options beside the speed pill."""
+        self._speed_open = open_
+        if open_:
+            self.speed_picker.grid()
+        else:
+            self.speed_picker.grid_remove()
+        self._refresh_speed_btn(None)
+
+    def _refresh_speed_btn(self, speed: float | None) -> None:
+        """Pill text: "Velocidade 70% ▸". Brighter while slowed down, so a
+        reduced speed is never forgotten with the options folded away."""
+        if speed is not None:
+            self._speed_shown = speed
+        speed = getattr(self, "_speed_shown", 1.0)
+        slowed = abs(speed - 1.0) > 1e-6
+        # open: the pill shrinks to a fold-back arrow, or the 100% option
+        # would slide under the time readout on a 1366 px laptop
+        text = ("◂" if self._speed_open else
+                f"{L('lbl_speed').rstrip(':')}  {round(speed * 100)}%  ▸")
+        self.speed_btn.configure(
+            text=text, width=36 if self._speed_open else 150,
+            text_color=COL_TEXT if slowed else COL_TEXT_2,
+            fg_color=BTN_GHOST_HOV if slowed else BTN_GHOST_BG)
 
     def _on_mix_change(self) -> None:
         """Mixer changed (gain/mute/solo): re-analyse the audible material
@@ -2822,8 +3910,12 @@ class IsolateApp(_Root):
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
         state = "disabled" if busy else "normal"
-        for btn in (self.separate_btn, self.download_btn, self.export_btn):
+        for btn in (self.separate_btn, self.download_btn, self.export_btn,
+                    self.speed_picker, self.speed_btn, self.save_lib_btn,
+                    self.library_btn):
             btn.configure(state=state)
+        if not busy:
+            self._sync_speed_picker()    # a failed change snaps back
         # native Windows spinner while a worker is busy ("watch" maps to
         # the OS loading cursor; "" restores the default arrow)
         try:
@@ -2881,7 +3973,7 @@ class IsolateApp(_Root):
         elif self._bpm_live_txt is not None:
             self._bpm_live_txt = None
             if self._bpm_global is not None and not self._analyzing:
-                self.bpm_label.configure(text=f"{self._bpm_global:.0f}",
+                self.bpm_label.configure(text=self._bpm_text(),
                                          text_color=AMBER)
 
         # VU meters (post-fader per track, post-master on the master bus)
