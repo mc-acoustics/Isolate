@@ -3,7 +3,7 @@
 **🇧🇷 Português** · [🇺🇸 English](#-english)
 
 App desktop para Windows 10/11, **100% local e gratuito**, que separa uma
-música em stems (vocais, bateria, baixo, piano, outros) e abre tudo num
+música em stems (vocais, bateria, baixo, guitarra, piano, outros) e abre tudo num
 mixer multi-track estilo DAW, com playback sincronizado em tempo real,
 detecção automática de tom e BPM, e export do seu mix. Interface em
 **português e inglês** (seletor PT/EN no rodapé).
@@ -32,6 +32,15 @@ detecção automática de tom e BPM, e export do seu mix. Interface em
   (pulso vindo da bateria separada), com volume próprio e seleção de nível
   ÷2 / 1× / ×2. Ao exportar, sai também um `_metronome.wav` na mesma linha
   do tempo, para abrir num DAW ao lado do mix.
+- **Velocidade de prática**: toque junto em 70%, 80% ou 90% do andamento
+  original **sem mudar o tom**. Todas as stems são esticadas juntas (ficam
+  travadas entre si) e o metrônomo acompanha o novo andamento. O export
+  sai sempre na velocidade original.
+- **Biblioteca de músicas**: *Salvar na biblioteca* guarda a música
+  separada, com stems, tom, BPM, metrônomo, mixer e velocidade; depois é
+  só abrir pela *Biblioteca* e continuar de onde parou, **offline e sem
+  separar de novo**. Cada música vira uma pasta em `Músicas\Isolate`
+  (stems em FLAC 24-bit, sem perda), e a pasta pode ser trocada no app.
 - **Entrada flexível**: arraste um arquivo (`.wav .mp3 .m4a .mp4`), navegue,
   ou cole uma URL do YouTube (via yt-dlp).
 - **Export**: WAV 16-bit/44.1 kHz ou MP3 320 kbps CBR do mix atual.
@@ -75,8 +84,6 @@ a build LGPL do ffmpeg** ([BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Bu
 extraída em `%LOCALAPPDATA%\Isolate\ffmpeg-lgpl\`) e gera a pasta
 `licenses\` com os textos de licença de todas as dependências.
 
-A especificação original completa do projeto está em [SPEC.md](SPEC.md).
-
 ## Licença
 
 [GPLv3](LICENSE). Dependências principais: Spleeter (MIT), TensorFlow
@@ -98,7 +105,7 @@ binário separado e substituível).
 [🇧🇷 Português](#isolate--stem-splitter--multi-track-mixer) · **🇺🇸 English**
 
 A **100% local and free** desktop app for Windows 10/11 that splits a song
-into stems (vocals, drums, bass, piano, other) and opens everything in a
+into stems (vocals, drums, bass, guitar, piano, other) and opens everything in a
 DAW-style multi-track mixer, with real-time synchronized playback,
 automatic key and BPM detection, and mix export. Interface available in
 **Portuguese and English** (PT/EN selector in the footer).
@@ -127,6 +134,15 @@ automatic key and BPM detection, and mix export. Interface available in
   pulse comes from the separated drums), with its own volume and a
   ÷2 / 1× / ×2 level switch. Exporting also writes a `_metronome.wav` on
   the same timeline, to drop into a DAW next to the mix.
+- **Practice speed**: play along at 70%, 80% or 90% of the original tempo
+  **without changing the key**. All stems are stretched together (they
+  stay locked to each other) and the metronome follows the new tempo.
+  Exports always come out at the original speed.
+- **Song library**: *Save to library* keeps the separated song, with its
+  stems, key, BPM, metronome, mixer and speed; later just open it from
+  the *Library* and pick up where you left off, **offline, with no
+  re-separation**. Each song is a folder under `Music\Isolate` (stems as
+  lossless 24-bit FLAC), and the folder can be changed in the app.
 - **Flexible input**: drag & drop a file (`.wav .mp3 .m4a .mp4`), browse,
   or paste a YouTube URL (via yt-dlp).
 - **Export**: WAV 16-bit/44.1 kHz or MP3 320 kbps CBR of the current mix.
@@ -171,8 +187,6 @@ Produces `dist\Isolate\Isolate.exe` (one-dir). The script bundles
 ([BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), extracted
 under `%LOCALAPPDATA%\Isolate\ffmpeg-lgpl\`) and generates the `licenses\`
 folder with the license texts of every dependency.
-
-The complete original project specification lives in [SPEC.md](SPEC.md).
 
 ## License
 

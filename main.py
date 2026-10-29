@@ -41,7 +41,7 @@ from tkinter import filedialog, messagebox
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")   # silence TF chatter
 
 _APP_NAME = "Isolate"
-APP_VERSION = "2.3-beta"
+APP_VERSION = "2.3"
 _APPDATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / _APP_NAME
 _MODELS_DIR = _APPDATA_DIR / "pretrained_models"
 _MODELS_DIR.mkdir(parents=True, exist_ok=True)
